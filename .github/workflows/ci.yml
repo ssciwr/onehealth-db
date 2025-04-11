@@ -25,6 +25,11 @@ jobs:
       run: |
         pip install pytest pytest-cov
 
+    - name: Create .cdsapirc file
+      run: |
+        echo "url: https://cds.climate.copernicus.eu/api" >> ~/.cdsapirc
+        echo "key: ${{ secrets.CDSAPI_KEY }}" >> ~/.cdsapirc
+
     - name: Execute PyTest
       run: python -m pytest -svv --cov=mailcom --cov-report=xml:mailcom/coverage_re/coverage.xml
 
