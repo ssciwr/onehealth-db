@@ -113,22 +113,12 @@ if __name__ == "__main__":
         "month": [
             "01",
             "02",
-            "03",
-            "04",
-            "05",
-            "06",
-            "07",
-            "08",
-            "09",
-            "10",
-            "11",
-            "12",
         ],
         "time": ["00:00"],
         "data_format": data_format,
         "download_format": "unarchived",
     }
-    # request["area"] = [45, -90, -45, 90]  # [N, W, S, E]
+    request["area"] = [45, -90, -45, 90]  # [N, W, S, E]
     file_name = get_filename(
         dataset,
         data_format,
