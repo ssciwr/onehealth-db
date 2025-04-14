@@ -1,5 +1,4 @@
 import cdsapi
-import os
 from pathlib import Path
 import xarray as xr
 
@@ -63,19 +62,49 @@ if __name__ == "__main__":
     data_format = "netcdf"  # Change to "grib" if needed
     file_ext = "grib" if data_format == "grib" else "nc"
     data_folder = Path("data/in/")
-    file_name = "era5_data_2025_03_monthly.{}".format(file_ext)
-    output_file = data_folder / file_name
 
     dataset = "reanalysis-era5-land-monthly-means"
     request = {
         "product_type": ["monthly_averaged_reanalysis"],
         "variable": ["2m_temperature"],
-        "year": ["2025"],
-        "month": ["03"],
+        "year": ["2024"],
+        "month": [
+            "01",
+            "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
+        ],
         "time": ["00:00"],
         "data_format": data_format,
         "download_format": "unarchived",
     }
+    request["month"] = ["03"]
+    request["year"] = ["2025"]
+
+    year_str = "_".join(request["year"])
+
+    file_name = "era5_data"
+
+    if len(request["month"]) != 12:
+        month_str = "_".join(request["month"])
+    else:
+        month_str = "all"
+
+    file_name = file_name + "_{}_{}".format(year_str, month_str) + "_monthly"
+
+    request["area"] = [45, -90, -45, 90]  # [N, W, S, E]
+    if "area" in request:
+        file_name = file_name + "_area"
+    file_name = file_name + "." + file_ext
+    output_file = data_folder / file_name
 
     if not output_file.exists():
         print("Downloading data...")
@@ -84,21 +113,21 @@ if __name__ == "__main__":
         print("Data already exists at {}".format(output_file))
 
     # load data into xarray
-    ds = xr.open_dataset(output_file)
-    print("Variables in the dataset:")
-    print(ds.variables)
-    print("Encoding: {}".format(ds["t2m"].encoding))
-    # convert temperature to Celsius
-    temperature_celsius = convert_to_celsius(ds["t2m"])
-    # and save to a new NetCDF file
-    celsius_file_name = file_name.split(".")[0] + "_celsius.nc"
-    output_celsius_file = data_folder / celsius_file_name
-    encoding = {
-        var: {
-            "zlib": True,  # Enable compression
-            "complevel": 1,  # Compression level (1–9) TODO: check info
-            "dtype": "float32",  # Use float32 to match original
+    with xr.open_dataset(output_file) as ds:
+        print("Variables in the dataset:")
+        print(ds.variables)
+        print("Encoding: {}".format(ds["t2m"].encoding))
+        # convert temperature to Celsius
+        temperature_celsius = convert_to_celsius(ds["t2m"])
+        # and save to a new NetCDF file
+        celsius_file_name = file_name.split(".")[0] + "_celsius.nc"
+        output_celsius_file = data_folder / celsius_file_name
+        encoding = {
+            var: {
+                "zlib": True,  # Enable compression
+                "complevel": 1,  # Compression level (1–9) TODO: check info
+                "dtype": "float32",  # Use float32 to match original
+            }
+            for var in ds.data_vars
         }
-        for var in ds.data_vars
-    }
-    save_to_netcdf(temperature_celsius, output_celsius_file, encoding)
+        save_to_netcdf(temperature_celsius, output_celsius_file, encoding)
