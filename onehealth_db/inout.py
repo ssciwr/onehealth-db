@@ -42,7 +42,7 @@ def convert_to_celsius(temperature_kelvin: xr.DataArray) -> xr.DataArray:
     return temperature_kelvin - 273.15
 
 
-def save_to_netcdf(data: xr.DataArray, filename: str, encoding: dict):
+def save_to_netcdf(data: xr.DataArray, filename: str, encoding: dict = None):
     """Save data to a NetCDF file.
 
     Args:
@@ -54,13 +54,55 @@ def save_to_netcdf(data: xr.DataArray, filename: str, encoding: dict):
     if not filename:
         raise ValueError("Filename must be provided.")
 
-    data.to_netcdf(filename, encoding=encoding)
+    data.to_netcdf(filename, encoding=encoding)  # TODO: check structure of encoding
     print("Data saved to {}".format(filename))
+
+
+def get_filename(
+    ds_name: str,
+    data_format: str,
+    years: list,
+    months: list,
+    has_area: bool,
+    base_name: str = "era5_data",
+):
+    """Get file name based on dataset name, base name, years, months and area.
+
+    Args:
+        ds_name (str): Dataset name.
+        data_format (str): Data format (e.g., "netcdf", "grib").
+        years (list): List of years.
+        months (list): List of months.
+        has_area (bool): Flag indicating if area is included.
+        base_name (str): Base name for the file.
+            Default is "era5_data".
+    Returns:
+        str: Generated file name.
+    """
+    year_str = "_".join(years)
+
+    if len(set(months)) != 12:
+        month_str = "_".join(months)
+    else:
+        month_str = "all"
+
+    if "monthly" in ds_name:
+        ds_type = "_monthly"
+    else:
+        ds_type = ""
+
+    file_name = base_name + "_{}_{}".format(year_str, month_str) + ds_type
+
+    if has_area:
+        file_name = file_name + "_area"
+
+    file_ext = "grib" if data_format == "grib" else "nc"
+    file_name = file_name + "." + file_ext
+    return file_name
 
 
 if __name__ == "__main__":
     data_format = "netcdf"  # Change to "grib" if needed
-    file_ext = "grib" if data_format == "grib" else "nc"
     data_folder = Path("data/in/")
 
     dataset = "reanalysis-era5-land-monthly-means"
@@ -86,24 +128,15 @@ if __name__ == "__main__":
         "data_format": data_format,
         "download_format": "unarchived",
     }
-    request["month"] = ["03"]
-    request["year"] = ["2025"]
-
-    year_str = "_".join(request["year"])
-
-    file_name = "era5_data"
-
-    if len(request["month"]) != 12:
-        month_str = "_".join(request["month"])
-    else:
-        month_str = "all"
-
-    file_name = file_name + "_{}_{}".format(year_str, month_str) + "_monthly"
-
-    request["area"] = [45, -90, -45, 90]  # [N, W, S, E]
-    if "area" in request:
-        file_name = file_name + "_area"
-    file_name = file_name + "." + file_ext
+    # request["area"] = [45, -90, -45, 90]  # [N, W, S, E]
+    file_name = get_filename(
+        dataset,
+        data_format,
+        request["year"],
+        request["month"],
+        "area" in request,
+        "era5_data",
+    )
     output_file = data_folder / file_name
 
     if not output_file.exists():
@@ -112,20 +145,17 @@ if __name__ == "__main__":
     else:
         print("Data already exists at {}".format(output_file))
 
-    # load data into xarray
+    celsius_file_name = file_name.split(".")[0] + "_celsius.nc"
+    output_celsius_file = data_folder / celsius_file_name
     with xr.open_dataset(output_file) as ds:
-        print("Variables in the dataset:")
-        print(ds.variables)
-        print("Encoding: {}".format(ds["t2m"].encoding))
+        print("Converting temperature to Celsius...")
         # convert temperature to Celsius
         temperature_celsius = convert_to_celsius(ds["t2m"])
         # and save to a new NetCDF file
-        celsius_file_name = file_name.split(".")[0] + "_celsius.nc"
-        output_celsius_file = data_folder / celsius_file_name
         encoding = {
             var: {
                 "zlib": True,  # Enable compression
-                "complevel": 1,  # Compression level (1–9) TODO: check info
+                "complevel": 1,  # Compression level (1–9)
                 "dtype": "float32",  # Use float32 to match original
             }
             for var in ds.data_vars
