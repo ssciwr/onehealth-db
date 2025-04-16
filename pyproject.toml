@@ -21,6 +21,8 @@ version = "0.0.1"
 dependencies = [
   "cdsapi",
   "xarray",
+  "netcdf4",
+  "cfgrib",
   "duckdb",
 ]
 
