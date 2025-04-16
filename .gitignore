@@ -126,4 +126,5 @@ dmypy.json
 
 # sample data 
 data
+!onehealth_db/test/data/
 !docs/index.html

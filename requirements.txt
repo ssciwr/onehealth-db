@@ -1,5 +1,3 @@
 cdsapi
 xarray
-netcdf4
-cfgrib
 duckdb
