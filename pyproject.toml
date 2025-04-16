@@ -23,6 +23,7 @@ dependencies = [
   "xarray",
   "netcdf4",
   "cfgrib",
+  "duckdb",
 ]
 
 [project.optional-dependencies]

@@ -4,7 +4,7 @@ import xarray as xr
 import numpy as np
 
 
-def test_download_data(tmp_path):
+def test_download_data_invalid():
     # empty output file path
     with pytest.raises(ValueError):
         inout.download_data(None, "test_dataset", {"param": "value"})
@@ -25,7 +25,8 @@ def test_download_data(tmp_path):
     with pytest.raises(ValueError):
         inout.download_data("test_output.nc", "test_dataset", "invalid_request")
 
-    # valid case
+
+def test_download_data_valid(tmp_path):
     output_file = tmp_path / "test" / "test_output.nc"
     dataset = "reanalysis-era5-land-monthly-means"
     request = {
@@ -36,7 +37,7 @@ def test_download_data(tmp_path):
         "time": ["00:00"],
         "data_format": "netcdf",
         "download_format": "unarchived",
-        "area": [2, -1, -2, 1],  # [N, W, S, E]
+        "area": [0, -1, 0, 1],  # [N, W, S, E]
     }
     inout.download_data(output_file, dataset, request)
     assert output_file.exists()
