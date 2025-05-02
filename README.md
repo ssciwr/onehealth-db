@@ -11,3 +11,8 @@ Create a `.cdsapirc` file containing your personal access token by following [th
 
 ## Getting the NUTS regions
 The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010) and corresponding shapefiles can be downloaded [here](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).
+
+## Run PostgreSQL database with Docker
+```bash
+docker compose up
+```
