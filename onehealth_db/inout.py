@@ -109,7 +109,7 @@ if __name__ == "__main__":
     request = {
         "product_type": ["monthly_averaged_reanalysis"],
         "variable": ["2m_temperature"],
-        "year": ["2024"],
+        "year": ["2025"],
         "month": [
             "01",
             "02",
