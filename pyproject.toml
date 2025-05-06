@@ -24,6 +24,9 @@ dependencies = [
   "netcdf4",
   "cfgrib",
   "duckdb",
+  "jupyter",
+  "matplotlib",
+  "geopandas",
 ]
 
 [project.optional-dependencies]

@@ -118,7 +118,7 @@ if __name__ == "__main__":
         "data_format": data_format,
         "download_format": "unarchived",
     }
-    request["area"] = [45, -90, -45, 90]  # [N, W, S, E]
+    request["area"] = [90, -90, -90, 90]  # [N, W, S, E]
     file_name = get_filename(
         dataset,
         data_format,
