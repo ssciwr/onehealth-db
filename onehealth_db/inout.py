@@ -209,7 +209,7 @@ def get_filename(
 
 
 if __name__ == "__main__":
-    data_format = "netcdf"  # Change to "grib" if needed
+    data_format = "netcdf"  # processing for "grib" has not been supported yet
     data_folder = Path("data/in/")
 
     dataset = "reanalysis-era5-land-monthly-means"
