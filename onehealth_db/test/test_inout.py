@@ -220,13 +220,14 @@ def test_convert_to_celsius_with_attributes_no_inplace(get_dataset):
 def test_convert_to_celsius_with_attributes_inplace(get_dataset):
     # convert to Celsius, no area
     org_data_array = get_dataset["t2m"].copy()
+    org_ds_attrs = get_dataset.attrs.copy()
     inout.convert_to_celsius_with_attributes(
         get_dataset, limited_area=False, inplace=True
     )
     expected_celsius_array = org_data_array - 273.15
 
     # check if the attributes are preserved
-    assert get_dataset.attrs == get_dataset.attrs
+    assert get_dataset.attrs == org_ds_attrs
     assert get_dataset["t2m"].attrs.get("GRIB_units") == "C"
     assert get_dataset["t2m"].attrs.get("units") == "C"
     assert get_dataset["t2m"].attrs.get(
@@ -262,7 +263,7 @@ def test_convert_to_celsius_with_attributes_inplace(get_dataset):
     inout.convert_to_celsius_with_attributes(
         get_dataset, limited_area=True, inplace=True
     )
-    assert get_dataset.attrs == get_dataset.attrs
+    assert get_dataset.attrs == org_ds_attrs
     assert get_dataset["t2m"].attrs.get("GRIB_units") == "C"
     assert get_dataset["t2m"].attrs.get("units") == "C"
     assert get_dataset["t2m"].attrs.get(

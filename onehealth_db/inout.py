@@ -242,14 +242,13 @@ if __name__ == "__main__":
     else:
         print("Data already exists at {}".format(output_file))
 
-    # adjust longitude
-    with xr.open_dataset(output_file) as ds:
-        print("Adjusting longitude from 0-360 to -180-180...")
-        ds = adjust_longitude_360_to_180(ds, inplace=True)
-
     celsius_file_name = file_name.split(".")[0] + "_celsius.nc"
     output_celsius_file = data_folder / celsius_file_name
     with xr.open_dataset(output_file) as ds:
+        # adjust longitude
+        print("Adjusting longitude from 0-360 to -180-180...")
+        ds = adjust_longitude_360_to_180(ds, inplace=True)
+
         print("Converting temperature to Celsius...")
         # convert temperature to Celsius
         ds = convert_to_celsius_with_attributes(
