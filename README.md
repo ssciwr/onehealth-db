@@ -10,10 +10,20 @@ Scripts for working with the database, including:
 * longitudes in each netCDF file are adjusted from (0-360) to (-180 to 180)
 * temperatures in each netCDF file are converted from Kelvin to Celsius
 
-## Setting up CDS API
+## Setting up CDS API for downloading ERA5-Land data
 To use  CDS API for downloading data, you need to first create an account on CDS to obtain your personal access token.
 
 Create a `.cdsapirc` file containing your personal access token by following [this instruction](https://cds.climate.copernicus.eu/how-to-api).
+
+## Population data from ISIMIP
+Perform the following steps to download population data used for this project:
+* go to [ISIMIP website](https://data.isimip.org/)
+* search `population` from the search bar
+* choose simulation round `ISIMIP3a`
+* click `Input Data` -> `Direct human forcing` -> `Population data` -> `histsoc`
+* choose `population_histsoc_30arcmin_annual`
+* download file `population_histsoc_30arcmin_annual_1901_2021.nc`
+
 
 ## Getting the NUTS regions
 The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010) and corresponding shapefiles can be downloaded [here](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).

@@ -120,31 +120,32 @@ def convert_to_celsius_with_attributes(
         }
     )
 
-    if limited_area:
-        # get old attribute values
-        old_lon_first_grid = dataset["t2m"].attrs.get(
-            "GRIB_longitudeOfFirstGridPointInDegrees"
-        )
-        old_lon_last_grid = dataset["t2m"].attrs.get(
-            "GRIB_longitudeOfLastGridPointInDegrees"
-        )
-        dataset["t2m"].attrs.update(
-            {
-                "GRIB_longitudeOfFirstGridPointInDegrees": convert_360_to_180(
-                    old_lon_first_grid
-                ),
-                "GRIB_longitudeOfLastGridPointInDegrees": convert_360_to_180(
-                    old_lon_last_grid
-                ),
-            }
-        )
-    else:
-        dataset["t2m"].attrs.update(
-            {
-                "GRIB_longitudeOfFirstGridPointInDegrees": np.float64(-179.9),
-                "GRIB_longitudeOfLastGridPointInDegrees": np.float64(180.0),
-            }
-        )
+    for var in list(dataset.data_vars.keys()):
+        if limited_area:
+            # get old attribute values
+            old_lon_first_grid = dataset[var].attrs.get(
+                "GRIB_longitudeOfFirstGridPointInDegrees"
+            )
+            old_lon_last_grid = dataset[var].attrs.get(
+                "GRIB_longitudeOfLastGridPointInDegrees"
+            )
+            dataset[var].attrs.update(
+                {
+                    "GRIB_longitudeOfFirstGridPointInDegrees": convert_360_to_180(
+                        old_lon_first_grid
+                    ),
+                    "GRIB_longitudeOfLastGridPointInDegrees": convert_360_to_180(
+                        old_lon_last_grid
+                    ),
+                }
+            )
+        else:
+            dataset[var].attrs.update(
+                {
+                    "GRIB_longitudeOfFirstGridPointInDegrees": np.float64(-179.9),
+                    "GRIB_longitudeOfLastGridPointInDegrees": np.float64(180.0),
+                }
+            )
 
     return dataset
 
