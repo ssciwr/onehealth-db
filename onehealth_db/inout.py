@@ -172,6 +172,7 @@ def get_filename(
     months: list,
     has_area: bool,
     base_name: str = "era5_data",
+    variable: list = ["2m_temperature"],
 ):
     """Get file name based on dataset name, base name, years, months and area.
 
@@ -183,28 +184,43 @@ def get_filename(
         has_area (bool): Flag indicating if area is included.
         base_name (str): Base name for the file.
             Default is "era5_data".
+        variable (list): List of variables.
+            Default is ["2m_temperature"].
     Returns:
         str: Generated file name.
     """
-    year_str = "_".join(years)
+    if len(years) > 5:
+        year_str = "_".join(years[:5]) + "_etc"
+    else:
+        year_str = "_".join(years)
 
     if len(set(months)) != 12:
         month_str = "_".join(months)
     else:
         month_str = "all"
 
+    var_str = "_".join(
+        ["".join(word[0] for word in var.split("_")) for var in variable]
+    )
+    if len(var_str) > 30:
+        var_str = var_str[:2] + "_etc"  # e.g. 2t_etc
+
     if "monthly" in ds_name:
         ds_type = "_monthly"
     else:
         ds_type = ""
 
-    file_name = base_name + "_{}_{}".format(year_str, month_str) + ds_type
+    file_name = base_name + "_{}_{}_{}".format(year_str, month_str, var_str) + ds_type
 
     if has_area:
         file_name = file_name + "_area"
 
+    if len(file_name) > 100:
+        file_name = file_name[:100] + "_etc"
+
     file_ext = "grib" if data_format == "grib" else "nc"
     file_name = file_name + "." + file_ext
+
     return file_name
 
 
@@ -215,7 +231,7 @@ if __name__ == "__main__":
     dataset = "reanalysis-era5-land-monthly-means"
     request = {
         "product_type": ["monthly_averaged_reanalysis"],
-        "variable": ["2m_temperature"],
+        "variable": ["2m_temperature", "total_precipitation"],
         "year": ["2024"],
         "month": [
             "01",
@@ -233,6 +249,7 @@ if __name__ == "__main__":
         request["month"],
         "area" in request,
         "era5_data",
+        request["variable"],
     )
     output_file = data_folder / file_name
 
