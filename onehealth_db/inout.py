@@ -1,6 +1,8 @@
 import cdsapi
 from pathlib import Path
 import xarray as xr
+import numpy as np
+from typing import TypeVar, Union
 
 
 def download_data(output_file: Path, dataset: str, request: dict):
@@ -29,6 +31,49 @@ def download_data(output_file: Path, dataset: str, request: dict):
     print("Data downloaded successfully to {}".format(output_file))
 
 
+T = TypeVar("T", bound=Union[float, xr.DataArray])
+
+
+def convert_360_to_180(longitude: T) -> T:
+    """Convert longitude from 0-360 to -180-180.
+
+    Args:
+        longitude (T): Longitude in 0-360 range.
+
+    Returns:
+        T: Longitude in -180-180 range.
+    """
+    return (longitude + 180) % 360 - 180
+
+
+def adjust_longitude_360_to_180(
+    dataset: xr.Dataset, inplace: bool = True
+) -> xr.Dataset:
+    """Adjust longitude from 0-360 to -180-180.
+
+    Args:
+        dataset (xr.Dataset): Dataset with longitude in 0-360 range.
+        inplace (bool): If True, modify the original dataset.
+            If False, return a new dataset. Default is True.
+
+    Returns:
+        xr.Dataset: Dataset with longitude adjusted to -180-180 range.
+    """
+    if not inplace:
+        dataset = dataset.copy(deep=True)
+
+    # record attributes
+    lon_attrs = dataset["longitude"].attrs.copy()
+
+    # adjust longitude
+    dataset = dataset.assign_coords(
+        longitude=convert_360_to_180(dataset["longitude"])
+    ).sortby("longitude")
+    dataset["longitude"].attrs = lon_attrs
+
+    return dataset
+
+
 def convert_to_celsius(temperature_kelvin: xr.DataArray) -> xr.DataArray:
     """Convert temperature from Kelvin to Celsius.
 
@@ -40,6 +85,68 @@ def convert_to_celsius(temperature_kelvin: xr.DataArray) -> xr.DataArray:
         xr.DataArray: Temperature in Celsius.
     """
     return temperature_kelvin - 273.15
+
+
+def convert_to_celsius_with_attributes(
+    dataset: xr.Dataset, limited_area: bool = True, inplace: bool = True
+) -> xr.Dataset:
+    """Convert temperature from Kelvin to Celsius and keep attributes.
+
+    Args:
+        dataset (xr.Dataset): Dataset containing temperature in Kelvin.
+        limited_area (bool): Flag indicating if the dataset is a limited area.
+            Default is True.
+        inplace (bool): If True, modify the original dataset.
+            If False, return a new dataset. Default is True.
+
+    Returns:
+        xr.Dataset: Dataset with temperature converted to Celsius.
+    """
+    if not inplace:
+        dataset = dataset.copy(deep=True)
+
+    # record attributes
+    t2m_attrs = dataset["t2m"].attrs.copy()
+
+    # Convert temperature variable
+    dataset["t2m"] = convert_to_celsius(dataset["t2m"])
+
+    # Update attributes
+    dataset["t2m"].attrs = t2m_attrs
+    dataset["t2m"].attrs.update(
+        {
+            "GRIB_units": "C",
+            "units": "C",
+        }
+    )
+
+    if limited_area:
+        # get old attribute values
+        old_lon_first_grid = dataset["t2m"].attrs.get(
+            "GRIB_longitudeOfFirstGridPointInDegrees"
+        )
+        old_lon_last_grid = dataset["t2m"].attrs.get(
+            "GRIB_longitudeOfLastGridPointInDegrees"
+        )
+        dataset["t2m"].attrs.update(
+            {
+                "GRIB_longitudeOfFirstGridPointInDegrees": convert_360_to_180(
+                    old_lon_first_grid
+                ),
+                "GRIB_longitudeOfLastGridPointInDegrees": convert_360_to_180(
+                    old_lon_last_grid
+                ),
+            }
+        )
+    else:
+        dataset["t2m"].attrs.update(
+            {
+                "GRIB_longitudeOfFirstGridPointInDegrees": np.float64(-179.9),
+                "GRIB_longitudeOfLastGridPointInDegrees": np.float64(180.0),
+            }
+        )
+
+    return dataset
 
 
 def save_to_netcdf(data: xr.DataArray, filename: str, encoding: dict = None):
@@ -102,7 +209,7 @@ def get_filename(
 
 
 if __name__ == "__main__":
-    data_format = "netcdf"  # Change to "grib" if needed
+    data_format = "netcdf"  # processing for "grib" has not been supported yet
     data_folder = Path("data/in/")
 
     dataset = "reanalysis-era5-land-monthly-means"
@@ -138,9 +245,15 @@ if __name__ == "__main__":
     celsius_file_name = file_name.split(".")[0] + "_celsius.nc"
     output_celsius_file = data_folder / celsius_file_name
     with xr.open_dataset(output_file) as ds:
+        # adjust longitude
+        print("Adjusting longitude from 0-360 to -180-180...")
+        ds = adjust_longitude_360_to_180(ds, inplace=True)
+
         print("Converting temperature to Celsius...")
         # convert temperature to Celsius
-        temperature_celsius = convert_to_celsius(ds["t2m"])
+        ds = convert_to_celsius_with_attributes(
+            ds, limited_area="area" in request, inplace=True
+        )
         # and save to a new NetCDF file
         encoding = {
             var: {
@@ -150,4 +263,4 @@ if __name__ == "__main__":
             }
             for var in ds.data_vars
         }
-        save_to_netcdf(temperature_celsius, output_celsius_file, encoding)
+        save_to_netcdf(ds, output_celsius_file, encoding)

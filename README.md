@@ -1,8 +1,14 @@
 # OneHealth project - Database
 
-Scripts for downloading and processing GRIB & netCDF files.
+(to be updated...)
 
-TBU.
+Scripts for working with the database, including:
+
+#### Input data downloading and processing
+
+* downloading GRIB & netCDF files from [Climate Data Store](https://cds.climate.copernicus.eu/) (ERA5-Land)
+* longitudes in each netCDF file are adjusted from (0-360) to (-180 to 180)
+* temperatures in each netCDF file are converted from Kelvin to Celsius
 
 ## Setting up CDS API
 To use  CDS API for downloading data, you need to first create an account on CDS to obtain your personal access token.
