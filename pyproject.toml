@@ -27,9 +27,6 @@ dependencies = [
   "jupyter",
   "matplotlib",
   "geopandas",
-  "sqlalchemy",
-  "geoalchemy2",
-  "psycopg2-binary",
 ]
 
 [project.optional-dependencies]
