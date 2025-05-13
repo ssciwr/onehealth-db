@@ -30,5 +30,6 @@ The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals
 
 ## Run PostgreSQL database with Docker
 ```bash
-docker compose up
+docker compose up -d
 ```
+Use option `-d` to run the docker service in background.
