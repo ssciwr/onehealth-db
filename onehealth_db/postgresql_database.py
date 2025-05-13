@@ -4,7 +4,7 @@ from geoalchemy2 import Geometry, WKBElement
 from sqlalchemy.orm import sessionmaker
 import geopandas as gpd
 from pathlib import Path
-import psycopg2
+import time
 
 
 # Base declarative class
@@ -133,34 +133,30 @@ def insert_nuts_def(engine, shapefile_path: Path):
             "COAST_TYPE": "coast_type",
         }
     )
-    nuts_data.to_sql(
-        NutsDef.__tablename__,
-        engine,
-        if_exists="replace",
-        index=False,
-        dtype={
-            "geometry": Geometry("POLYGON", srid=4326),
-        },
+    nuts_data.to_postgis(
+        NutsDef.__tablename__, engine, if_exists="replace", index=False
     )
 
 
 if __name__ == "__main__":
+    # record running time
+    run_time = {"nuts_def": -1, "era5_land": -1, "isimip": -1}
+
     # PostgreSQL database URL
     db_url = "postgresql+psycopg2://postgres:postgres@localhost:5432/postgres"
 
     # initialize the database
     engine = initialize_database(db_url)
 
+    # start recording time
+    t0 = time.time()
+
     # path to the shapefile
     pkg_pth = Path(__file__).parent.parent
     shapefile_path = pkg_pth / "data" / "in" / "NUTS_RG_20M_2024_4326.shp"
     # insert NUTS definition data
     insert_nuts_def(engine, shapefile_path)
-    # conn = psycopg2.connect(
-    #     dbname="postgres",
-    #     user="postgres",
-    #     host="localhost",
-    #     password="postgres",
-    #     port="5432",
-    # )
-    # print("Connected to the database.")
+    t_nuts_def = time.time()
+
+    run_time["nuts_def"] = t_nuts_def - t0
+    print(f"NUTS definition data inserted in {run_time['nuts_def']} seconds.")
