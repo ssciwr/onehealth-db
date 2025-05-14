@@ -17,6 +17,11 @@ import geopandas as gpd
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import xarray as xr
+
+
+STR_CRS = "4326"
+STR_POINT = "SRID={};POINT({} {})"
 
 
 # Base declarative class
@@ -44,11 +49,11 @@ class GridPoint(Base):
     __tablename__ = "grid_point"
 
     id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
-    latitude: Mapped[Float] = mapped_column(Float())
-    longitude: Mapped[Float] = mapped_column(Float())
+    latitude: Mapped[float] = mapped_column(Float())
+    longitude: Mapped[float] = mapped_column(Float())
 
     # Geometry column for PostGIS
-    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326))
+    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326), nullable=True)
 
     __table_args__ = (
         Index("idx_point_gridpoint", "point", postgresql_using="gist"),
@@ -59,7 +64,9 @@ class GridPoint(Base):
         super().__init__(**kw)
         self.latitude = latitude
         self.longitude = longitude
-        self.point = f"SRID=4326;POINT({self.longitude} {self.latitude})"
+        # add value of point automatically,
+        # only works when using the constructor, i.e. session.add()
+        self.point = STR_POINT.format(STR_CRS, self.longitude, self.latitude)
 
 
 class TimePoint(Base):
@@ -93,7 +100,7 @@ class VarValue(Base):
     grid_id: Mapped[int] = mapped_column(Integer(), ForeignKey("grid_point.id"))
     time_id: Mapped[int] = mapped_column(Integer(), ForeignKey("time_point.id"))
     var_id: Mapped[int] = mapped_column(Integer(), ForeignKey("var_type.id"))
-    value: Mapped[Float] = mapped_column(Float())
+    value: Mapped[float] = mapped_column(Float())
 
     __table_args__ = (
         UniqueConstraint("time_id", "grid_id", "var_id", name="uq_time_grid_var"),
@@ -132,7 +139,6 @@ def create_session(engine):
     Create a new session for the database.
     """
     Session = sessionmaker(bind=engine)
-    print("Session created.")
     return Session()
 
 
@@ -208,15 +214,31 @@ def add_data_list(engine, data_list: list):
     session.close()
 
 
-def insert_grid_points(engine, latitudes: list, longitudes: list):
+def add_data_list_bulk(engine, data_dict_list: list, class_type):
+    """
+    Add a list of data to the database in bulk.
+    """
+    session = create_session(engine)
+    session.bulk_insert_mappings(class_type, data_dict_list)
+    session.commit()
+    session.close()
+
+
+def insert_grid_points(engine, latitudes: np.ndarray, longitudes: np.ndarray):
     """
     Insert grid points into the database.
     """
+    # create list of dictionaries for bulk insert
     grid_points = [
-        GridPoint(latitude=lat, longitude=lon)
-        for lat, lon in zip(latitudes, longitudes)
+        {
+            "latitude": float(lat),
+            "longitude": float(lon),
+            "point": STR_POINT.format(STR_CRS, float(lon), float(lat)),
+        }
+        for lat in latitudes
+        for lon in longitudes
     ]
-    add_data_list(engine, grid_points)
+    add_data_list_bulk(engine, grid_points, GridPoint)
     print("Grid points inserted.")
 
 
@@ -232,18 +254,24 @@ def extract_time_point(time_point: np.datetime64) -> tuple[int, int, int]:
         return None, None, None
 
 
-def insert_time_points(engine, time_points: list):
+def insert_time_points(engine, time_point_data: np.ndarray):
     """
     Insert time points into the database.
     """
     time_points = []
     # extract year, month, day from the time points
-    for time_point in time_points:
+    for time_point in time_point_data:
         year, month, day = extract_time_point(time_point)
         if year is not None and month is not None and day is not None:
-            time_points.append(TimePoint(year=year, month=month, day=day))
+            time_points.append(
+                {
+                    "year": year,
+                    "month": month,
+                    "day": day,
+                }
+            )
 
-    add_data_list(engine, time_points)
+    add_data_list_bulk(engine, time_points, TimePoint)
     print("Time points inserted.")
 
 
@@ -263,18 +291,71 @@ def insert_var_types(engine, var_types: list):
     print("Variable types inserted.")
 
 
-def insert_var_values(engine, var_values: list):
+def get_id_maps(engine):
+    """
+    Get ID maps for grid points, time points, and variable types.
+    """
+    session = create_session(engine)
+    grid_points = session.query(
+        GridPoint.id, GridPoint.latitude, GridPoint.longitude
+    ).all()
+    grid_id_map = {(lat, lon): grid_id for grid_id, lat, lon in grid_points}
+
+    time_id_map = {
+        np.datetime64(f"{row.year}-{row.month}-{row.day}", "ns"): row.id
+        for row in session.query(TimePoint).all()
+    }
+
+    var_id_map = {row.name: row.id for row in session.query(VarType).all()}
+
+    session.close()
+
+    return grid_id_map, time_id_map, var_id_map
+
+
+def insert_var_values(engine, ds: xr.Dataset, var_name: str):
     """
     Insert variable values into the database.
     """
-    var_values = [
-        VarValue(
-            grid_id=var_value["grid_id"],
-            time_id=var_value["time_id"],
-            var_id=var_value["var_id"],
-            value=var_value["value"],
-        )
-        for var_value in var_values
-    ]
-    add_data_list(engine, var_values)
+    var_values = []
+    # values of the variable
+    var_data = ds[var_name]
+    var_data = var_data.dropna(dim="latitude", how="all")
+
+    # get id maps
+    grid_id_map, time_id_map, var_id_map = get_id_maps(engine)
+
+    # get the variable id
+    var_id = var_id_map.get(var_name)
+    if var_id is None:
+        raise ValueError(f"Variable {var_name} not found in var_type table.")
+
+    # check each instance of the variable
+    for t in var_data.valid_time.values:
+        time_id = time_id_map.get(np.datetime64(t, "ns"))
+        if time_id is None:
+            continue
+        for lat in var_data.latitude.values:
+            for lon in var_data.longitude.values:
+                grid_id = grid_id_map.get((lat, lon))
+                if grid_id is None:
+                    continue
+                # get the value of the variable
+                value = var_data.sel(
+                    valid_time=t, latitude=lat, longitude=lon, method="nearest"
+                ).item()
+                if np.isnan(value):
+                    continue
+
+                # add the variable value to the list
+                var_values.append(
+                    {
+                        "grid_id": grid_id,
+                        "time_id": time_id,
+                        "var_id": var_id,
+                        "value": float(value),
+                    }
+                )
+
+    add_data_list_bulk(engine, var_values)
     print("Variable values inserted.")

@@ -9,3 +9,4 @@ geopandas
 sqlalchemy
 geoalchemy2
 psycopg2-binary
+dask[complete]
