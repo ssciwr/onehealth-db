@@ -2,7 +2,6 @@ from sqlalchemy import (
     create_engine,
     text,
     Float,
-    TIMESTAMP,
     String,
     Integer,
     BigInteger,
@@ -16,55 +15,13 @@ from geoalchemy2 import Geometry, WKBElement
 from sqlalchemy.orm import sessionmaker
 import geopandas as gpd
 from pathlib import Path
-import time
+import pandas as pd
+import numpy as np
 
 
 # Base declarative class
 class Base(DeclarativeBase):
     pass
-
-
-class GeoGridStats(Base):
-    __tablename__ = "geo_grid_stats"
-
-    time: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(), primary_key=True)
-    latitude: Mapped[Float] = mapped_column(Float(), primary_key=True)
-    longitude: Mapped[Float] = mapped_column(Float(), primary_key=True)
-    t2m: Mapped[Float] = mapped_column(Float(), nullable=True)
-    tp: Mapped[Float] = mapped_column(Float(), nullable=True)
-    popu: Mapped[Float] = mapped_column(Float(), nullable=True)
-
-    # daylight column
-    daylight: Mapped[Float] = mapped_column(Float(), nullable=True)
-    # Geometry column for PostGIS
-    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326))
-
-    # indices
-    __table_args__ = (
-        Index("idx_time", "time"),
-        Index("idx_spatial", "point", postgresql_using="gist"),
-    )
-
-    def __init__(self, time, latitude, longitude, t2m, tp, popu, **kw):
-        super().__init__(**kw)
-        self.time = time
-        self.latitude = latitude
-        self.longitude = longitude
-        self.t2m = t2m
-        self.tp = tp
-        self.popu = popu
-
-        self.point = f"SRID=4326;POINT({self.longitude} {self.latitude})"
-        self.daylight = self.calculate_daylight()
-
-    def calculate_daylight(self):
-        """
-        Calculate daylight hours based on latitude and time.
-        This is a placeholder for the actual daylight calculation logic.
-        """
-        # Placeholder logic for daylight calculation
-        # Replace with actual calculation as needed
-        return 12.0
 
 
 class NutsDef(Base):
@@ -94,7 +51,7 @@ class GridPoint(Base):
     point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326))
 
     __table_args__ = (
-        Index("idx_spatial", "point", postgresql_using="gist"),
+        Index("idx_point_gridpoint", "point", postgresql_using="gist"),
         UniqueConstraint("latitude", "longitude", name="uq_lat_lon"),
     )
 
@@ -122,10 +79,11 @@ class VarType(Base):
     __tablename__ = "var_type"
 
     id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
-    var_name: Mapped[String] = mapped_column(String())
-    var_unit: Mapped[String] = mapped_column(String())
+    name: Mapped[String] = mapped_column(String())
+    unit: Mapped[String] = mapped_column(String())
+    description: Mapped[String] = mapped_column(String(), nullable=True)
 
-    __table_args__ = (UniqueConstraint("var_name", name="uq_var_name"),)
+    __table_args__ = (UniqueConstraint("name", name="uq_var_name"),)
 
 
 class VarValue(Base):
@@ -186,18 +144,31 @@ def create_tables(engine):
     print("All tables created.")
 
 
-def initialize_database(db_url: str):
+def create_or_replace_tables(engine):
     """
-    Initialize the database by creating the engine, session, and tables.
+    Create or replace tables in the database.
+    """
+    Base.metadata.drop_all(engine)
+    print("All tables dropped.")
+    create_tables(engine)
+
+
+def initialize_database(db_url: str, replace: bool = False):
+    """
+    Initialize the database by creating the engine and tables, and installing PostGIS.
+    If replace is True, it will drop and recreate the tables.
     """
     # create engine
-    engine = create_engine(db_url, echo=True)
+    engine = create_engine(db_url)  # remove echo=True to show just errors in terminal
 
     # install PostGIS extension
     install_postgis(engine)
 
-    # create tables
-    create_tables(engine)
+    # create or replace tables
+    if replace:
+        create_or_replace_tables(engine)
+    else:
+        create_tables(engine)
 
     print("Database initialized successfully.")
 
@@ -227,25 +198,83 @@ def insert_nuts_def(engine, shapefile_path: Path):
     )
 
 
-if __name__ == "__main__":
-    # record running time
-    run_time = {"nuts_def": -1, "era5_land": -1, "isimip": -1}
+def add_data_list(engine, data_list: list):
+    """
+    Add a list of data to the database.
+    """
+    session = create_session(engine)
+    session.add_all(data_list)
+    session.commit()
+    session.close()
 
-    # PostgreSQL database URL
-    db_url = "postgresql+psycopg2://postgres:postgres@localhost:5432/postgres"
 
-    # initialize the database
-    engine = initialize_database(db_url)
+def insert_grid_points(engine, latitudes: list, longitudes: list):
+    """
+    Insert grid points into the database.
+    """
+    grid_points = [
+        GridPoint(latitude=lat, longitude=lon)
+        for lat, lon in zip(latitudes, longitudes)
+    ]
+    add_data_list(engine, grid_points)
+    print("Grid points inserted.")
 
-    # start recording time
-    t0 = time.time()
 
-    # path to the shapefile
-    pkg_pth = Path(__file__).parent.parent
-    shapefile_path = pkg_pth / "data" / "in" / "NUTS_RG_20M_2024_4326.shp"
-    # insert NUTS definition data
-    insert_nuts_def(engine, shapefile_path)
-    t_nuts_def = time.time()
+def extract_time_point(time_point: np.datetime64) -> tuple[int, int, int]:
+    """
+    Extract year, month, and day from a numpy datetime64 object.
+    """
+    if isinstance(time_point, np.datetime64):
+        time_stamp = pd.Timestamp(time_point)
+        return time_stamp.year, time_stamp.month, time_stamp.day
+    else:
+        raise ValueError("Invalid time point format.")
+        return None, None, None
 
-    run_time["nuts_def"] = t_nuts_def - t0
-    print(f"NUTS definition data inserted in {run_time['nuts_def']} seconds.")
+
+def insert_time_points(engine, time_points: list):
+    """
+    Insert time points into the database.
+    """
+    time_points = []
+    # extract year, month, day from the time points
+    for time_point in time_points:
+        year, month, day = extract_time_point(time_point)
+        if year is not None and month is not None and day is not None:
+            time_points.append(TimePoint(year=year, month=month, day=day))
+
+    add_data_list(engine, time_points)
+    print("Time points inserted.")
+
+
+def insert_var_types(engine, var_types: list):
+    """
+    Insert variable types into the database.
+    """
+    var_types = [
+        VarType(
+            name=var_type["name"],
+            unit=var_type["unit"],
+            description=var_type["description"],
+        )
+        for var_type in var_types
+    ]
+    add_data_list(engine, var_types)
+    print("Variable types inserted.")
+
+
+def insert_var_values(engine, var_values: list):
+    """
+    Insert variable values into the database.
+    """
+    var_values = [
+        VarValue(
+            grid_id=var_value["grid_id"],
+            time_id=var_value["time_id"],
+            var_id=var_value["var_id"],
+            value=var_value["value"],
+        )
+        for var_value in var_values
+    ]
+    add_data_list(engine, var_values)
+    print("Variable values inserted.")
