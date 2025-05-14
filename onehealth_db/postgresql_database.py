@@ -1,4 +1,16 @@
-from sqlalchemy import create_engine, Float, TIMESTAMP, String, Integer, Index, text
+from sqlalchemy import (
+    create_engine,
+    text,
+    Float,
+    TIMESTAMP,
+    String,
+    Integer,
+    BigInteger,
+    Index,
+    ForeignKey,
+    UniqueConstraint,
+    ForeignKeyConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from geoalchemy2 import Geometry, WKBElement
 from sqlalchemy.orm import sessionmaker
@@ -68,6 +80,83 @@ class NutsDef(Base):
     coast_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     geometry: Mapped[WKBElement] = mapped_column(
         Geometry(geometry_type="POINT", srid=4326)
+    )
+
+
+class GridPoint(Base):
+    __tablename__ = "grid_point"
+
+    id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
+    latitude: Mapped[Float] = mapped_column(Float())
+    longitude: Mapped[Float] = mapped_column(Float())
+
+    # Geometry column for PostGIS
+    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326))
+
+    __table_args__ = (
+        Index("idx_spatial", "point", postgresql_using="gist"),
+        UniqueConstraint("latitude", "longitude", name="uq_lat_lon"),
+    )
+
+    def __init__(self, latitude, longitude, **kw):
+        super().__init__(**kw)
+        self.latitude = latitude
+        self.longitude = longitude
+        self.point = f"SRID=4326;POINT({self.longitude} {self.latitude})"
+
+
+class TimePoint(Base):
+    __tablename__ = "time_point"
+
+    id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
+    year: Mapped[int] = mapped_column(Integer())
+    month: Mapped[int] = mapped_column(Integer())
+    day: Mapped[int] = mapped_column(Integer())
+
+    __table_args__ = (
+        UniqueConstraint("year", "month", "day", name="uq_year_month_day"),
+    )
+
+
+class VarType(Base):
+    __tablename__ = "var_type"
+
+    id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
+    var_name: Mapped[String] = mapped_column(String())
+    var_unit: Mapped[String] = mapped_column(String())
+
+    __table_args__ = (UniqueConstraint("var_name", name="uq_var_name"),)
+
+
+class VarValue(Base):
+    __tablename__ = "var_value"
+
+    id: Mapped[int] = mapped_column(BigInteger(), primary_key=True, autoincrement=True)
+    grid_id: Mapped[int] = mapped_column(Integer(), ForeignKey("grid_point.id"))
+    time_id: Mapped[int] = mapped_column(Integer(), ForeignKey("time_point.id"))
+    var_id: Mapped[int] = mapped_column(Integer(), ForeignKey("var_type.id"))
+    value: Mapped[Float] = mapped_column(Float())
+
+    __table_args__ = (
+        UniqueConstraint("time_id", "grid_id", "var_id", name="uq_time_grid_var"),
+        ForeignKeyConstraint(
+            ["grid_id"],
+            ["grid_point.id"],
+            name="fk_grid_id",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["time_id"],
+            ["time_point.id"],
+            name="fk_time_id",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["var_id"],
+            ["var_type.id"],
+            name="fk_var_id",
+            ondelete="CASCADE",
+        ),
     )
 
 
