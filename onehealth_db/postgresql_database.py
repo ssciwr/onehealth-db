@@ -313,7 +313,14 @@ def get_id_maps(engine):
     return grid_id_map, time_id_map, var_id_map
 
 
-def insert_var_values(engine, ds: xr.Dataset, var_name: str):
+def insert_var_values(
+    engine,
+    ds: xr.Dataset,
+    var_name: str,
+    grid_id_map: dict,
+    time_id_map: dict,
+    var_id_map: dict,
+):
     """
     Insert variable values into the database.
     """
@@ -322,16 +329,13 @@ def insert_var_values(engine, ds: xr.Dataset, var_name: str):
     var_data = ds[var_name]
     var_data = var_data.dropna(dim="latitude", how="all")
 
-    # get id maps
-    grid_id_map, time_id_map, var_id_map = get_id_maps(engine)
-
     # get the variable id
     var_id = var_id_map.get(var_name)
     if var_id is None:
         raise ValueError(f"Variable {var_name} not found in var_type table.")
 
     # check each instance of the variable
-    for t in var_data.valid_time.values:
+    for t in var_data.time.values:
         time_id = time_id_map.get(np.datetime64(t, "ns"))
         if time_id is None:
             continue
@@ -342,7 +346,7 @@ def insert_var_values(engine, ds: xr.Dataset, var_name: str):
                     continue
                 # get the value of the variable
                 value = var_data.sel(
-                    valid_time=t, latitude=lat, longitude=lon, method="nearest"
+                    time=t, latitude=lat, longitude=lon, method="nearest"
                 ).item()
                 if np.isnan(value):
                     continue
