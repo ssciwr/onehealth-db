@@ -18,6 +18,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import xarray as xr
+import pandas as pd
+import time
 
 
 STR_CRS = "4326"
@@ -302,7 +304,7 @@ def get_id_maps(engine):
     grid_id_map = {(lat, lon): grid_id for grid_id, lat, lon in grid_points}
 
     time_id_map = {
-        np.datetime64(f"{row.year}-{row.month}-{row.day}", "ns"): row.id
+        np.datetime64(pd.to_datetime(f"{row.year}-{row.month}-{row.day}"), "ns"): row.id
         for row in session.query(TimePoint).all()
     }
 
@@ -324,42 +326,50 @@ def insert_var_values(
     """
     Insert variable values into the database.
     """
-    var_values = []
     # values of the variable
     var_data = ds[var_name]
-    var_data = var_data.dropna(dim="latitude", how="all")
+    var_data = var_data.dropna(
+        dim="latitude", how="all"
+    ).load()  # load data into memory
 
     # get the variable id
     var_id = var_id_map.get(var_name)
     if var_id is None:
         raise ValueError(f"Variable {var_name} not found in var_type table.")
 
-    # check each instance of the variable
-    for t in var_data.time.values:
-        time_id = time_id_map.get(np.datetime64(t, "ns"))
-        if time_id is None:
-            continue
-        for lat in var_data.latitude.values:
-            for lon in var_data.longitude.values:
-                grid_id = grid_id_map.get((lat, lon))
-                if grid_id is None:
-                    continue
-                # get the value of the variable
-                value = var_data.sel(
-                    time=t, latitude=lat, longitude=lon, method="nearest"
-                ).item()
-                if np.isnan(value):
-                    continue
+    # using stack() from xarray to vectorize the data
+    stacked_var_data = var_data.stack(points=("time", "latitude", "longitude"))
+    stacked_var_data = stacked_var_data.dropna("points")
 
-                # add the variable value to the list
-                var_values.append(
-                    {
-                        "grid_id": grid_id,
-                        "time_id": time_id,
-                        "var_id": var_id,
-                        "value": float(value),
-                    }
-                )
+    # get id for each dim
+    time_vals = stacked_var_data["time"].values.astype("datetime64[ns]")
+    lat_vals = stacked_var_data["latitude"].values
+    lon_vals = stacked_var_data["longitude"].values
 
-    add_data_list_bulk(engine, var_values)
-    print("Variable values inserted.")
+    # create vectorized mapping
+    get_time_id = np.vectorize(lambda t: time_id_map.get(np.datetime64(t, "ns")))
+    get_grid_id = np.vectorize(lambda lat, lon: grid_id_map.get((lat, lon)))
+
+    time_ids = get_time_id(time_vals)
+    grid_ids = get_grid_id(lat_vals, lon_vals)
+    values = stacked_var_data.values.astype(float)
+
+    # create a mask for valid values
+    masks = ~np.isnan(values)
+
+    # create bulk data for insertion
+    var_values = [
+        {
+            "grid_id": int(grid_id),
+            "time_id": int(time_id),
+            "var_id": int(var_id),
+            "value": float(value),
+        }
+        for grid_id, time_id, value, mask in zip(grid_ids, time_ids, values, masks)
+        if mask and (grid_id is not None) and (time_id is not None)
+    ]
+    t_start_insert = time.time()
+    print(f"Start inserting {var_name} values...")
+    add_data_list_bulk(engine, var_values, VarValue)
+    print(f"Values of {var_name} inserted.")
+    return t_start_insert
