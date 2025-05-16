@@ -1,6 +1,7 @@
 import pytest
 from onehealth_db import postgresql_database as postdb
 import numpy as np
+import xarray as xr
 
 
 @pytest.fixture
@@ -13,7 +14,7 @@ def get_time_points():
 
 def test_extract_time_point(get_time_points):
     for time_point, expected_data in get_time_points.items():
-        year, month, day = postdb.extract_time_point(time_point)
+        year, month, day, _, _, _ = postdb.extract_time_point(time_point)
         assert (year, month, day) == expected_data
 
 
@@ -47,3 +48,34 @@ def test_get_unique_time_points(get_time_point_lists):
     assert len(unique_time_points) == 24
     assert unique_time_points[0] == np.datetime64("2023-01-01", "ns")
     assert unique_time_points[-1] == np.datetime64("2024-12-01", "ns")
+
+
+@pytest.fixture()
+def get_dataset():
+    data = np.random.rand(2, 3, 2) * 1000 + 273.15
+    data_array = xr.DataArray(
+        data,
+        dims=["latitude", "longitude", "time"],
+        coords={
+            "latitude": [0, 1],
+            "longitude": [0, 1, 2],
+            "time": [
+                np.datetime64("2023-01-01", "ns"),
+                np.datetime64("2024-01-01", "ns"),
+            ],
+        },
+    )
+    dataset = xr.Dataset({"t2m": data_array})
+    return dataset
+
+
+def test_convert_monthly_to_yearly(get_dataset):
+    assert get_dataset.sizes == {"latitude": 2, "longitude": 3, "time": 2}
+    monthly_dataset = postdb.convert_yearly_to_monthly(get_dataset)
+    assert monthly_dataset.sizes == {"latitude": 2, "longitude": 3, "time": 24}
+    assert monthly_dataset.t2m.shape == (2, 3, 24)
+    assert monthly_dataset.t2m[0, 0, 0] == get_dataset.t2m[0, 0, 0]
+    assert monthly_dataset.t2m[0, 0, 1] == get_dataset.t2m[0, 0, 0]
+    assert monthly_dataset.t2m[0, 0, 2] == get_dataset.t2m[0, 0, 0]
+    assert monthly_dataset.t2m[0, 0, 11] == get_dataset.t2m[0, 0, 0]
+    assert monthly_dataset.t2m[0, 0, 12] == get_dataset.t2m[0, 0, 1]

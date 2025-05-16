@@ -250,10 +250,17 @@ def extract_time_point(time_point: np.datetime64) -> tuple[int, int, int]:
     """
     if isinstance(time_point, np.datetime64):
         time_stamp = pd.Timestamp(time_point)
-        return time_stamp.year, time_stamp.month, time_stamp.day
+        return (
+            time_stamp.year,
+            time_stamp.month,
+            time_stamp.day,
+            time_stamp.hour,
+            time_stamp.minute,
+            time_stamp.second,
+        )
     else:
         raise ValueError("Invalid time point format.")
-        return None, None, None
+        return None, None, None, None, None, None
 
 
 def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndarray:
@@ -308,7 +315,7 @@ def insert_time_points(engine, time_point_data: list[(np.ndarray, bool)]):
 
     # extract year, month, day from the time points
     for time_point in time_points:
-        year, month, day = extract_time_point(time_point)
+        year, month, day, _, _, _ = extract_time_point(time_point)
         if year is not None and month is not None and day is not None:
             time_point_values.append(
                 {
@@ -360,6 +367,32 @@ def get_id_maps(engine):
     return grid_id_map, time_id_map, var_id_map
 
 
+def convert_yearly_to_monthly(ds: xr.Dataset) -> xr.Dataset:
+    """Convert yearly data to monthly data.
+    Args:
+        ds: xarray dataset with yearly data.
+    Returns:
+        xarray dataset with monthly data.
+    """
+    if ds.time.values[0] > ds.time.values[-1]:
+        # sort the time points
+        ds = ds.sortby("time")
+
+    # create monthly time points
+    s_y, s_m, _, s_h, s_mi, s_s = extract_time_point(ds.time.values[0])
+    e_y, _, _, e_h, e_mi, e_s = extract_time_point(ds.time.values[-1])
+    new_time_points = pd.date_range(
+        start=pd.Timestamp(
+            year=s_y, month=s_m, day=1, hour=s_h, minute=s_mi, second=s_s
+        ),
+        end=pd.Timestamp(year=e_y, month=12, day=1, hour=e_h, minute=e_mi, second=e_s),
+        freq="MS",
+    )
+
+    # reindex dataset with new time points
+    return ds.reindex(time=new_time_points, method="ffill")
+
+
 def insert_var_values(
     engine,
     ds: xr.Dataset,
@@ -367,10 +400,24 @@ def insert_var_values(
     grid_id_map: dict,
     time_id_map: dict,
     var_id_map: dict,
+    yearly: bool = False,
 ):
+    """Insert variable values into the database.
+
+    Args:
+        engine: SQLAlchemy engine object.
+        ds: xarray dataset with variable data.
+        var_name: Name of the variable to insert.
+        grid_id_map: Mapping of grid points to IDs.
+        time_id_map: Mapping of time points to IDs.
+        var_id_map: Mapping of variable types to IDs.
+        yearly: Flag indicating if the data is yearly or monthly.
     """
-    Insert variable values into the database.
-    """
+    if yearly:
+        # convert yearly data to monthly data
+        ds = convert_yearly_to_monthly(ds)
+    t_yearly_to_monthly = time.time()
+
     # values of the variable
     var_data = ds[var_name]
     var_data = var_data.dropna(
@@ -417,4 +464,4 @@ def insert_var_values(
     print(f"Start inserting {var_name} values...")
     add_data_list_bulk(engine, var_values, VarValue)
     print(f"Values of {var_name} inserted.")
-    return t_start_insert
+    return t_yearly_to_monthly, t_start_insert
