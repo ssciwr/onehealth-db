@@ -256,16 +256,61 @@ def extract_time_point(time_point: np.datetime64) -> tuple[int, int, int]:
         return None, None, None
 
 
-def insert_time_points(engine, time_point_data: np.ndarray):
-    """
-    Insert time points into the database.
+def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndarray:
+    """Get the unique of time points.
+
+    Args:
+        time_point_data: List of tuples containing time point data, and the yearly flag.
+            If flag is True, the time point needs to be converted to monthly.
+
+    Returns:
+        Unique of (sorted) time points as a numpy array.
     """
     time_points = []
+    for tpd, yearly in time_point_data:
+        if not yearly:
+            # assume it's monthly TODO
+            time_points.append(tpd)
+        else:
+            # convert to monthly for the whole range
+            if np.datetime64(tpd[0]) > np.datetime64(tpd[-1]):
+                # sort before converting
+                tpd = np.sort(tpd)
+
+            start_of_year = pd.Timestamp(
+                year=extract_time_point(np.datetime64(tpd[0]))[0], month=1, day=1
+            )
+            end_of_year = pd.Timestamp(
+                year=extract_time_point(np.datetime64(tpd[-1]))[0], month=12, day=1
+            )
+            time_points.append(
+                pd.date_range(start=start_of_year, end=end_of_year, freq="MS").values
+            )
+
+    if not time_points:
+        return np.array([])
+
+    concatenated = np.concatenate(time_points)
+    unique_time_points = np.unique(concatenated)
+    return sorted(unique_time_points)
+
+
+def insert_time_points(engine, time_point_data: list[(np.ndarray, bool)]):
+    """Insert time points into the database.
+
+    Args:
+        engine: SQLAlchemy engine object.
+        time_point_data: List of tuples containing time point data, and the yearly flag.
+    """
+    time_point_values = []
+    # get the overlap of the time points
+    time_points = get_unique_time_points(time_point_data)
+
     # extract year, month, day from the time points
-    for time_point in time_point_data:
+    for time_point in time_points:
         year, month, day = extract_time_point(time_point)
         if year is not None and month is not None and day is not None:
-            time_points.append(
+            time_point_values.append(
                 {
                     "year": year,
                     "month": month,
@@ -273,7 +318,7 @@ def insert_time_points(engine, time_point_data: np.ndarray):
                 }
             )
 
-    add_data_list_bulk(engine, time_points, TimePoint)
+    add_data_list_bulk(engine, time_point_values, TimePoint)
     print("Time points inserted.")
 
 
