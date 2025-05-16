@@ -415,6 +415,7 @@ def insert_var_values(
     """
     if yearly:
         # convert yearly data to monthly data
+        print(f"Converting {var_name} data from yearly to monthly...")
         ds = convert_yearly_to_monthly(ds)
     t_yearly_to_monthly = time.time()
 
@@ -439,7 +440,11 @@ def insert_var_values(
     lon_vals = stacked_var_data["longitude"].values
 
     # create vectorized mapping
-    get_time_id = np.vectorize(lambda t: time_id_map.get(np.datetime64(t, "ns")))
+    # normalize time before mapping as the time in isimip is 12:00:00
+    # TODO: find an optimal way to do this
+    get_time_id = np.vectorize(
+        lambda t: time_id_map.get(np.datetime64(pd.Timestamp(t).normalize(), "ns"))
+    )
     get_grid_id = np.vectorize(lambda lat, lon: grid_id_map.get((lat, lon)))
 
     time_ids = get_time_id(time_vals)
@@ -465,3 +470,47 @@ def insert_var_values(
     add_data_list_bulk(engine, var_values, VarValue)
     print(f"Values of {var_name} inserted.")
     return t_yearly_to_monthly, t_start_insert
+
+
+def get_var_value(
+    engine, var_name: str, lat: float, lon: float, year: int, month: int, day: int
+):
+    """Get variable value from the database.
+
+    Args:
+        engine: SQLAlchemy engine object.
+        var_name: Name of the variable to get.
+        lat: Latitude of the grid point.
+        lon: Longitude of the grid point.
+        year: Year of the time point.
+        month: Month of the time point.
+        day: Day of the time point.
+
+    Returns:
+        Value of the variable at the specified grid point and time point.
+    """
+    if day != 1:
+        print(
+            "The current database only supports monthly data."
+            "Retieving data for the first day of the month..."
+        )
+        day = 1
+
+    session = create_session(engine)
+    result = (
+        session.query(VarValue)
+        .join(GridPoint, VarValue.grid_id == GridPoint.id)
+        .join(TimePoint, VarValue.time_id == TimePoint.id)
+        .join(VarType, VarValue.var_id == VarType.id)
+        .filter(
+            GridPoint.latitude == lat,
+            GridPoint.longitude == lon,
+            TimePoint.year == year,
+            TimePoint.month == month,
+            TimePoint.day == day,
+            VarType.name == var_name,
+        )
+        .first()
+    )
+    session.close()
+    return result.value if result else None
