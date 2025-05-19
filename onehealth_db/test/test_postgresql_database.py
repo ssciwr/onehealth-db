@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 import os
 
 
-os.environ["DOCKER_HOST"] = "unix:///home/tuyen/.docker/desktop/docker.sock"
+# os.environ["DOCKER_HOST"] = "unix:///home/tuyen/.docker/desktop/docker.sock"
 
 
 @pytest.fixture(scope="module")

@@ -7,6 +7,10 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ['3.11', '3.12']
+    services:
+      docker:
+        image: docker:24.0.0
+        options: --privileged
     steps:
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -31,6 +35,8 @@ jobs:
         echo "key: ${{ secrets.CDSAPI_KEY }}" >> ~/.cdsapirc
 
     - name: Execute PyTest
+      env:
+          DOCKER_HOST: unix:///var/run/docker.sock
       run: python -m pytest -svv --cov=mailcom --cov-report=xml:mailcom/coverage_re/coverage.xml
 
     - name: Upload coverage reports to Codecov
