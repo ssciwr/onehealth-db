@@ -2,6 +2,40 @@ import pytest
 from onehealth_db import postgresql_database as postdb
 import numpy as np
 import xarray as xr
+from testcontainers.postgres import PostgresContainer
+from sqlalchemy import create_engine, text
+import os
+
+
+os.environ["DOCKER_HOST"] = "unix:///home/tuyen/.docker/desktop/docker.sock"
+
+
+@pytest.fixture(scope="module")
+def get_engine():
+    with PostgresContainer("postgis/postgis:15-3.4-alpine") as postgres:
+        engine = create_engine(postgres.get_connection_url())
+        postdb.Base.metadata.create_all(engine)
+        yield engine
+        postdb.Base.metadata.drop_all(engine)
+
+
+@pytest.fixture
+def get_session(get_engine):
+    Session = postdb.sessionmaker(bind=get_engine)
+    session = Session()
+    yield session
+    session.rollback()
+    session.close()
+
+
+def test_install_postgis(get_engine):
+    postdb.install_postgis(get_engine)
+    # check if postgis extension is installed
+    with get_engine.connect() as conn:
+        result = conn.execute(text("SELECT postgis_full_version();"))
+        version_text = result.fetchone()
+        assert version_text is not None
+        assert "POSTGIS=" in version_text[0]
 
 
 @pytest.fixture
