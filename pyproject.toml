@@ -31,13 +31,13 @@ dependencies = [
   "geoalchemy2",
   "psycopg2-binary",
   "dask[complete]",
+  "testcontainers",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pre-commit",
     "pytest",
-    "testcontainers",
 ]
 
 [project.urls]
