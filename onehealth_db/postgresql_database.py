@@ -11,6 +11,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.exc import SQLAlchemyError
 from geoalchemy2 import Geometry, WKBElement
 from sqlalchemy.orm import sessionmaker
 import geopandas as gpd
@@ -20,10 +21,14 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 import time
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 STR_CRS = "4326"
 STR_POINT = "SRID={};POINT({} {})"
+BATCH_SIZE = 10000
+MAX_WORKERS = 4
 
 
 # Base declarative class
@@ -221,9 +226,14 @@ def add_data_list_bulk(engine, data_dict_list: list, class_type):
     Add a list of data to the database in bulk.
     """
     session = create_session(engine)
-    session.bulk_insert_mappings(class_type, data_dict_list)
-    session.commit()
-    session.close()
+    try:
+        session.bulk_insert_mappings(class_type, data_dict_list)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"Error inserting data: {e}")
+    finally:
+        session.close()
 
 
 def insert_grid_points(engine, latitudes: np.ndarray, longitudes: np.ndarray):
@@ -419,6 +429,7 @@ def insert_var_values(
         ds = convert_yearly_to_monthly(ds)
     t_yearly_to_monthly = time.time()
 
+    print(f"Prepare inserting {var_name} values...")
     # values of the variable
     var_data = ds[var_name]
     var_data = var_data.dropna(
@@ -465,9 +476,23 @@ def insert_var_values(
         for grid_id, time_id, value, mask in zip(grid_ids, time_ids, values, masks)
         if mask and (grid_id is not None) and (time_id is not None)
     ]
+
+    def insert_batch(batch):
+        """Insert a batch of data into the database."""
+        add_data_list_bulk(engine, batch, VarValue)
+
+    print(f"Start inserting {var_name} values in parallel...")
     t_start_insert = time.time()
-    print(f"Start inserting {var_name} values...")
-    add_data_list_bulk(engine, var_values, VarValue)
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
+        for i in range(0, len(var_values), BATCH_SIZE):
+            batch = var_values[i : i + BATCH_SIZE]
+            futures.append(executor.submit(insert_batch, batch))
+
+        for _ in tqdm(as_completed(futures), total=len(futures)):
+            pass
+
     print(f"Values of {var_name} inserted.")
     return t_yearly_to_monthly, t_start_insert
 
