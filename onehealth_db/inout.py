@@ -190,10 +190,17 @@ def get_filename(
     Returns:
         str: Generated file name.
     """
-    if len(years) > 5:
-        year_str = "_".join(years[:5]) + "_etc"
+    # TODO: refactor to smaller functions
+    year_nums = sorted(int(year) for year in years)
+    are_continuous_years = (
+        len(year_nums) == (max(year_nums) - min(year_nums) + 1)
+    ) and len(year_nums) > 1
+    if are_continuous_years:
+        year_str = "_".join([str(min(year_nums)), str(max(year_nums))])
+    elif len(year_nums) > 5:
+        year_str = "_".join(str(y) for y in year_nums[:5]) + "_etc"
     else:
-        year_str = "_".join(years)
+        year_str = "_".join(str(y) for y in year_nums)
 
     if len(set(months)) != 12:
         month_str = "_".join(months)

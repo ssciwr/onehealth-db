@@ -396,7 +396,32 @@ def test_get_filename_long():
     assert file_name == "era5_data_2025_01_02_2t_etc_monthly_area.nc"
 
     # long years and long vars
-    years = [str(i) for i in range(1900, 2030, 2)]
+    years = [str(i) for i in range(1900, 2030)]
+    file_name = inout.get_filename(
+        "reanalysis-era5-land-monthly-means",
+        "netcdf",
+        years,
+        ["01", "02"],
+        True,
+        "era5_data",
+        vars,
+    )
+    assert file_name == "era5_data_1900_2029_01_02_2t_etc_monthly_area.nc"
+
+    # non-continuous years and long vars
+    file_name = inout.get_filename(
+        "reanalysis-era5-land-monthly-means",
+        "netcdf",
+        ["2020", "2023", "2021"],
+        ["01", "02"],
+        True,
+        "era5_data",
+        vars,
+    )
+    assert file_name == "era5_data_2020_2021_2023_01_02_2t_etc_monthly_area.nc"
+
+    # non-continuous years with more than 5 years
+    years = [str(i) for i in range(2020, 2040, 2)]
     file_name = inout.get_filename(
         "reanalysis-era5-land-monthly-means",
         "netcdf",
@@ -408,20 +433,22 @@ def test_get_filename_long():
     )
     assert (
         file_name
-        == "era5_data_1900_1902_1904_1906_1908_etc_01_02_2t_etc_monthly_area.nc"
+        == "era5_data_2020_2022_2024_2026_2028_etc_01_02_2t_etc_monthly_area.nc"
     )
 
     # more than 100 chars
+    years = [str(i) for i in range(1900, 2030)]
     file_name = inout.get_filename(
         "reanalysis-era5-land-monthly-means",
         "netcdf",
         years,
         ["01", "02"],
         True,
-        "era5_data_plus_something_very_long_to_make_it_longer",
+        "era5_data_plus_something_very_long_to_make_the_name_longer_than_100_chars",
         vars,
     )
     assert (
-        file_name == "era5_data_plus_something_very_long_to_make_it_longer_"
-        "1900_1902_1904_1906_1908_etc_01_02_2t_etc_month_etc.nc"
+        file_name
+        == "era5_data_plus_something_very_long_to_make_the_name_longer_than_100_chars_"
+        "1900_2029_01_02_2t_etc_mon_etc.nc"
     )
