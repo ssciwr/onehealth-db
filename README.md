@@ -53,3 +53,6 @@ The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals
 docker compose up -d
 ```
 Use option `-d` to run the docker service in background.
+
+## Naming convention for data files in data lake
+(will be updated while implementing preprocessing functions)
