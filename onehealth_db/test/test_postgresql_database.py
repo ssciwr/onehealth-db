@@ -4,15 +4,15 @@ import numpy as np
 import xarray as xr
 from testcontainers.postgres import PostgresContainer
 from sqlalchemy import create_engine, text
-import os
 
 
-# os.environ["DOCKER_HOST"] = "unix:///home/tuyen/.docker/desktop/docker.sock"
+# for local docker desktop,
+# environ["DOCKER_HOST"] is "unix:///home/[user]/.docker/desktop/docker.sock"
 
 
 @pytest.fixture(scope="module")
 def get_engine():
-    with PostgresContainer("postgis/postgis:15-3.4-alpine") as postgres:
+    with PostgresContainer("postgis/postgis:17-3.5") as postgres:
         engine = create_engine(postgres.get_connection_url())
         postdb.Base.metadata.create_all(engine)
         yield engine

@@ -8,7 +8,7 @@
 
 
 # Use the official PostgreSQL image from Docker Hub
-FROM postgis/postgis:15-3.4-alpine
+FROM postgis/postgis:17-3.5
 
 # Set environment variables for PostgreSQL
 #ENV POSTGRES_USER=postgres

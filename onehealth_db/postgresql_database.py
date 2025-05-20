@@ -410,7 +410,7 @@ def insert_var_values(
     grid_id_map: dict,
     time_id_map: dict,
     var_id_map: dict,
-    yearly: bool = False,
+    to_monthly: bool = False,
 ):
     """Insert variable values into the database.
 
@@ -421,9 +421,9 @@ def insert_var_values(
         grid_id_map: Mapping of grid points to IDs.
         time_id_map: Mapping of time points to IDs.
         var_id_map: Mapping of variable types to IDs.
-        yearly: Flag indicating if the data is yearly or monthly.
+        to_monthly: Whether to convert yearly data to monthly data.
     """
-    if yearly:
+    if to_monthly:
         # convert yearly data to monthly data
         print(f"Converting {var_name} data from yearly to monthly...")
         ds = convert_yearly_to_monthly(ds)
