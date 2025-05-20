@@ -209,6 +209,7 @@ def insert_nuts_def(engine, shapefile_path: Path):
     nuts_data.to_postgis(
         NutsDef.__tablename__, engine, if_exists="replace", index=False
     )
+    print("NUTS definition data inserted.")
 
 
 def add_data_list(engine, data_list: list):
