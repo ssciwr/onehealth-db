@@ -37,10 +37,10 @@ jobs:
     - name: Execute PyTest
       env:
           DOCKER_HOST: unix:///var/run/docker.sock
-      run: python -m pytest -svv --cov=mailcom --cov-report=xml:mailcom/coverage_re/coverage.xml
+      run: python -m pytest -svv --cov=onehealth_db --cov-report=xml:onehealth_db/coverage_re/coverage.xml
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4.0.1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        directory: ./mailcom/coverage_re/
+        directory: ./onehealth_db/coverage_re/
