@@ -1,7 +1,7 @@
 import pytest
 from onehealth_db import duck_database
 import pandas as pd
-from pathlib import Path
+from importlib import resources
 
 
 def check_table_name(con, table_name):
@@ -117,10 +117,16 @@ def test_file_to_dataframe_netcdf(get_dataframe, tmp_path):
     tmp_path.rmdir()
 
 
-def test_file_to_dataframe_grib_col_default():
-    grib_file = Path("onehealth_db/test/data/era5_2025_03_monthly_area_1-1-0-m1.grib")
+@pytest.fixture
+def get_grib_sample_path():
+    pkg = resources.files("onehealth_db")
+    grib_path = pkg / "test" / "data" / "era5_2025_03_monthly_area_1-1-0-m1.grib"
+    return grib_path
+
+
+def test_file_to_dataframe_grib_col_default(get_grib_sample_path):
     # Convert to DataFrame
-    df_grib = duck_database.file_to_dataframe(grib_file, columns="default")
+    df_grib = duck_database.file_to_dataframe(get_grib_sample_path, columns="default")
     assert isinstance(df_grib, pd.DataFrame)
     assert df_grib.shape[1] == 4
     assert "valid_time" in df_grib.columns
@@ -128,15 +134,14 @@ def test_file_to_dataframe_grib_col_default():
     assert "longitude" in df_grib.columns
     assert "t2m" in df_grib.columns
     # Clean up idx file due to cfgrib
-    idx_files = grib_file.parent.glob("*.idx")
+    idx_files = get_grib_sample_path.parent.glob("*.idx")
     for idx_file in idx_files:
         idx_file.unlink()
 
 
-def test_file_to_dataframe_grib_col_all():
-    grib_file = Path("onehealth_db/test/data/era5_2025_03_monthly_area_1-1-0-m1.grib")
+def test_file_to_dataframe_grib_col_all(get_grib_sample_path):
     # Convert to DataFrame
-    df_grib = duck_database.file_to_dataframe(grib_file, columns="all")
+    df_grib = duck_database.file_to_dataframe(get_grib_sample_path, columns="all")
     assert isinstance(df_grib, pd.DataFrame)
     # download grib file has 8 columns
     # latitude, longitude, number, time, step, surface, valid_time, t2m
@@ -144,6 +149,6 @@ def test_file_to_dataframe_grib_col_all():
     assert "valid_time" in df_grib.columns
     assert "time" in df_grib.columns
     # Clean up idx file due to cfgrib
-    idx_files = grib_file.parent.glob("*.idx")
+    idx_files = get_grib_sample_path.parent.glob("*.idx")
     for idx_file in idx_files:
         idx_file.unlink()
