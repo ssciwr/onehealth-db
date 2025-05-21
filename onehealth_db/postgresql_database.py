@@ -13,7 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
 from geoalchemy2 import Geometry, WKBElement
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.session import sessionmaker, Session
 import geopandas as gpd
 from pathlib import Path
 import pandas as pd
@@ -212,32 +212,31 @@ def insert_nuts_def(engine, shapefile_path: Path):
     print("NUTS definition data inserted.")
 
 
-def add_data_list(engine, data_list: list):
+def add_data_list(session, data_list: list):
     """
-    Add a list of data to the database.
+    Add a list of data instances to the database.
     """
-    session = create_session(engine)
-    session.add_all(data_list)
-    session.commit()
-    session.close()
+    try:
+        session.add_all(data_list)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"Error inserting data: {e}")
 
 
-def add_data_list_bulk(engine, data_dict_list: list, class_type):
+def add_data_list_bulk(session, data_dict_list: list, class_type):
     """
     Add a list of data to the database in bulk.
     """
-    session = create_session(engine)
     try:
         session.bulk_insert_mappings(class_type, data_dict_list)
         session.commit()
     except SQLAlchemyError as e:
         session.rollback()
         print(f"Error inserting data: {e}")
-    finally:
-        session.close()
 
 
-def insert_grid_points(engine, latitudes: np.ndarray, longitudes: np.ndarray):
+def insert_grid_points(session, latitudes: np.ndarray, longitudes: np.ndarray):
     """
     Insert grid points into the database.
     """
@@ -251,7 +250,7 @@ def insert_grid_points(engine, latitudes: np.ndarray, longitudes: np.ndarray):
         for lat in latitudes
         for lon in longitudes
     ]
-    add_data_list_bulk(engine, grid_points, GridPoint)
+    add_data_list_bulk(session, grid_points, GridPoint)
     print("Grid points inserted.")
 
 
@@ -313,12 +312,13 @@ def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndar
     return sorted(unique_time_points)
 
 
-def insert_time_points(engine, time_point_data: list[(np.ndarray, bool)]):
+def insert_time_points(session, time_point_data: list[(np.ndarray, bool)]):
     """Insert time points into the database.
 
     Args:
         engine: SQLAlchemy engine object.
-        time_point_data: List of tuples containing time point data, and the yearly flag.
+        time_point_data: List of tuples containing time point data, and its flag.
+            If flag is True, the time point needs to be converted to monthly.
     """
     time_point_values = []
     # get the overlap of the time points
@@ -336,11 +336,11 @@ def insert_time_points(engine, time_point_data: list[(np.ndarray, bool)]):
                 }
             )
 
-    add_data_list_bulk(engine, time_point_values, TimePoint)
+    add_data_list_bulk(session, time_point_values, TimePoint)
     print("Time points inserted.")
 
 
-def insert_var_types(engine, var_types: list):
+def insert_var_types(session, var_types: list[dict]):
     """
     Insert variable types into the database.
     """
@@ -352,15 +352,14 @@ def insert_var_types(engine, var_types: list):
         )
         for var_type in var_types
     ]
-    add_data_list(engine, var_types)
+    add_data_list(session, var_types)
     print("Variable types inserted.")
 
 
-def get_id_maps(engine):
+def get_id_maps(session: Session):
     """
     Get ID maps for grid points, time points, and variable types.
     """
-    session = create_session(engine)
     grid_points = session.query(
         GridPoint.id, GridPoint.latitude, GridPoint.longitude
     ).all()
@@ -480,7 +479,10 @@ def insert_var_values(
 
     def insert_batch(batch):
         """Insert a batch of data into the database."""
-        add_data_list_bulk(engine, batch, VarValue)
+        # create a new session for each batch
+        session = create_session(engine)
+        add_data_list_bulk(session, batch, VarValue)
+        session.close()
 
     print(f"Start inserting {var_name} values in parallel...")
     t_start_insert = time.time()
@@ -499,12 +501,12 @@ def insert_var_values(
 
 
 def get_var_value(
-    engine, var_name: str, lat: float, lon: float, year: int, month: int, day: int
+    session, var_name: str, lat: float, lon: float, year: int, month: int, day: int
 ):
     """Get variable value from the database.
 
     Args:
-        engine: SQLAlchemy engine object.
+        session: SQLAlchemy session object.
         var_name: Name of the variable to get.
         lat: Latitude of the grid point.
         lon: Longitude of the grid point.
@@ -522,7 +524,6 @@ def get_var_value(
         )
         day = 1
 
-    session = create_session(engine)
     result = (
         session.query(VarValue)
         .join(GridPoint, VarValue.grid_id == GridPoint.id)
@@ -538,5 +539,4 @@ def get_var_value(
         )
         .first()
     )
-    session.close()
     return result.value if result else None
