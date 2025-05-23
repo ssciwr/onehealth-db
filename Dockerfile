@@ -10,6 +10,9 @@
 # Use the official PostgreSQL image from Docker Hub
 FROM postgis/postgis:17-3.5
 
+# Use non-root user
+USER postgres
+
 # Set environment variables for PostgreSQL
 #ENV POSTGRES_USER=postgres
 #ENV POSTGRES_PASSWORD=postgres
