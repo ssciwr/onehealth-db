@@ -1,13 +1,13 @@
 import pytest
-from onehealth_db import database
+from onehealth_db import duck_database
 import pandas as pd
-from pathlib import Path
+from importlib import resources
 
 
 def check_table_name(con, table_name):
     """Check if the table name exists in the database."""
     check_name = con.execute(
-        f"""
+        """
         SELECT * FROM information_schema.tables
         WHERE table_name = ?
         """,
@@ -39,31 +39,31 @@ def get_first_value(con, table_name):
 
 def test_import_data_emtpy_data():
     with pytest.raises(ValueError):
-        database.import_data(data=None)
+        duck_database.import_data(data=None)
 
 
 def test_import_data_none_path(get_dataframe):
-    database.import_data(data=get_dataframe, db_path=None, table_name=None)
-    assert database.DEFAULT_DB_PATH.exists()
+    duck_database.import_data(data=get_dataframe, db_path=None, table_name=None)
+    assert duck_database.DEFAULT_DB_PATH.exists()
     # check table name and data
-    with database.duckdb.connect(str(database.DEFAULT_DB_PATH)) as con:
-        check_name = check_table_name(con, database.DEFAULT_DB_PATH.stem)
+    with duck_database.duckdb.connect(str(duck_database.DEFAULT_DB_PATH)) as con:
+        check_name = check_table_name(con, duck_database.DEFAULT_DB_PATH.stem)
         assert check_name is not None
-        first_value = get_first_value(con, database.DEFAULT_DB_PATH.stem)
+        first_value = get_first_value(con, duck_database.DEFAULT_DB_PATH.stem)
         assert first_value == (1,)
     # Clean up
-    database.DEFAULT_DB_PATH.unlink()
+    duck_database.DEFAULT_DB_PATH.unlink()
 
 
 def test_import_data_custom(get_dataframe, tmp_path):
     custom_db_path = tmp_path / "test" / "custom.db"
-    database.import_data(
+    duck_database.import_data(
         data=get_dataframe, db_path=custom_db_path, table_name="custom_table"
     )
     assert custom_db_path.exists()
     assert custom_db_path.parent.exists()
     # check table name and data
-    with database.duckdb.connect(str(custom_db_path)) as con:
+    with duck_database.duckdb.connect(str(custom_db_path)) as con:
         check_name = check_table_name(con, "custom_table")
         assert check_name is not None
         first_value = get_first_value(con, "custom_table")
@@ -76,26 +76,26 @@ def test_import_data_custom(get_dataframe, tmp_path):
 def test_file_to_dataframe_invalid(tmp_path):
     # invalid file
     with pytest.raises(FileNotFoundError):
-        database.file_to_dataframe(tmp_path / "non_existent_file.nc")
+        duck_database.file_to_dataframe(tmp_path / "non_existent_file.nc")
 
     # unsupported file format
     invalid_file = tmp_path / "invalid_file.txt"
     invalid_file.write_text("This is not a valid file format.")
 
     with pytest.raises(ValueError):
-        database.file_to_dataframe(invalid_file)
+        duck_database.file_to_dataframe(invalid_file)
 
     # empty columns
     with pytest.raises(ValueError):
-        database.file_to_dataframe(invalid_file, columns=[])
+        duck_database.file_to_dataframe(invalid_file, columns=[])
 
     # invalid col type
     with pytest.raises(ValueError):
-        database.file_to_dataframe(invalid_file, columns=123)
+        duck_database.file_to_dataframe(invalid_file, columns=123)
 
     # unsupported col
     with pytest.raises(ValueError):
-        database.file_to_dataframe(invalid_file, columns=["unsupported_column"])
+        duck_database.file_to_dataframe(invalid_file, columns=["unsupported_column"])
 
 
 @pytest.mark.filterwarnings("ignore::RuntimeWarning")
@@ -105,7 +105,9 @@ def test_file_to_dataframe_netcdf(get_dataframe, tmp_path):
     netcdf_file = tmp_path / "test_file.nc"
     ds.to_netcdf(netcdf_file, mode="a")
     # Convert to DataFrame
-    df_netcdf = database.file_to_dataframe(netcdf_file, columns=["column1", "column2"])
+    df_netcdf = duck_database.file_to_dataframe(
+        netcdf_file, columns=["column1", "column2"]
+    )
     assert isinstance(df_netcdf, pd.DataFrame)
     assert df_netcdf.shape == (3, 2)
     assert "column1" in df_netcdf.columns
@@ -115,10 +117,16 @@ def test_file_to_dataframe_netcdf(get_dataframe, tmp_path):
     tmp_path.rmdir()
 
 
-def test_file_to_dataframe_grib_col_default():
-    grib_file = Path("onehealth_db/test/data/era5_2025_03_monthly_area_1-1-0-m1.grib")
+@pytest.fixture
+def get_grib_sample_path():
+    pkg = resources.files("onehealth_db")
+    grib_path = pkg / "test" / "data" / "era5_2025_03_monthly_area_1-1-0-m1.grib"
+    return grib_path
+
+
+def test_file_to_dataframe_grib_col_default(get_grib_sample_path):
     # Convert to DataFrame
-    df_grib = database.file_to_dataframe(grib_file, columns="default")
+    df_grib = duck_database.file_to_dataframe(get_grib_sample_path, columns="default")
     assert isinstance(df_grib, pd.DataFrame)
     assert df_grib.shape[1] == 4
     assert "valid_time" in df_grib.columns
@@ -126,15 +134,14 @@ def test_file_to_dataframe_grib_col_default():
     assert "longitude" in df_grib.columns
     assert "t2m" in df_grib.columns
     # Clean up idx file due to cfgrib
-    idx_files = grib_file.parent.glob("*.idx")
+    idx_files = get_grib_sample_path.parent.glob("*.idx")
     for idx_file in idx_files:
         idx_file.unlink()
 
 
-def test_file_to_dataframe_grib_col_all():
-    grib_file = Path("onehealth_db/test/data/era5_2025_03_monthly_area_1-1-0-m1.grib")
+def test_file_to_dataframe_grib_col_all(get_grib_sample_path):
     # Convert to DataFrame
-    df_grib = database.file_to_dataframe(grib_file, columns="all")
+    df_grib = duck_database.file_to_dataframe(get_grib_sample_path, columns="all")
     assert isinstance(df_grib, pd.DataFrame)
     # download grib file has 8 columns
     # latitude, longitude, number, time, step, surface, valid_time, t2m
@@ -142,6 +149,6 @@ def test_file_to_dataframe_grib_col_all():
     assert "valid_time" in df_grib.columns
     assert "time" in df_grib.columns
     # Clean up idx file due to cfgrib
-    idx_files = grib_file.parent.glob("*.idx")
+    idx_files = get_grib_sample_path.parent.glob("*.idx")
     for idx_file in idx_files:
         idx_file.unlink()

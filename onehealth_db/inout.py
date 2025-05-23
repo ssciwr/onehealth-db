@@ -120,31 +120,32 @@ def convert_to_celsius_with_attributes(
         }
     )
 
-    if limited_area:
-        # get old attribute values
-        old_lon_first_grid = dataset["t2m"].attrs.get(
-            "GRIB_longitudeOfFirstGridPointInDegrees"
-        )
-        old_lon_last_grid = dataset["t2m"].attrs.get(
-            "GRIB_longitudeOfLastGridPointInDegrees"
-        )
-        dataset["t2m"].attrs.update(
-            {
-                "GRIB_longitudeOfFirstGridPointInDegrees": convert_360_to_180(
-                    old_lon_first_grid
-                ),
-                "GRIB_longitudeOfLastGridPointInDegrees": convert_360_to_180(
-                    old_lon_last_grid
-                ),
-            }
-        )
-    else:
-        dataset["t2m"].attrs.update(
-            {
-                "GRIB_longitudeOfFirstGridPointInDegrees": np.float64(-179.9),
-                "GRIB_longitudeOfLastGridPointInDegrees": np.float64(180.0),
-            }
-        )
+    for var in list(dataset.data_vars.keys()):
+        if limited_area:
+            # get old attribute values
+            old_lon_first_grid = dataset[var].attrs.get(
+                "GRIB_longitudeOfFirstGridPointInDegrees"
+            )
+            old_lon_last_grid = dataset[var].attrs.get(
+                "GRIB_longitudeOfLastGridPointInDegrees"
+            )
+            dataset[var].attrs.update(
+                {
+                    "GRIB_longitudeOfFirstGridPointInDegrees": convert_360_to_180(
+                        old_lon_first_grid
+                    ),
+                    "GRIB_longitudeOfLastGridPointInDegrees": convert_360_to_180(
+                        old_lon_last_grid
+                    ),
+                }
+            )
+        else:
+            dataset[var].attrs.update(
+                {
+                    "GRIB_longitudeOfFirstGridPointInDegrees": np.float64(-179.9),
+                    "GRIB_longitudeOfLastGridPointInDegrees": np.float64(180.0),
+                }
+            )
 
     return dataset
 
@@ -172,6 +173,7 @@ def get_filename(
     months: list,
     has_area: bool,
     base_name: str = "era5_data",
+    variable: list = ["2m_temperature"],
 ):
     """Get file name based on dataset name, base name, years, months and area.
 
@@ -183,28 +185,50 @@ def get_filename(
         has_area (bool): Flag indicating if area is included.
         base_name (str): Base name for the file.
             Default is "era5_data".
+        variable (list): List of variables.
+            Default is ["2m_temperature"].
     Returns:
         str: Generated file name.
     """
-    year_str = "_".join(years)
+    # TODO: refactor to smaller functions
+    year_nums = sorted(int(year) for year in years)
+    are_continuous_years = (
+        len(year_nums) == (max(year_nums) - min(year_nums) + 1)
+    ) and len(year_nums) > 1
+    if are_continuous_years:
+        year_str = "_".join([str(min(year_nums)), str(max(year_nums))])
+    elif len(year_nums) > 5:
+        year_str = "_".join(str(y) for y in year_nums[:5]) + "_etc"
+    else:
+        year_str = "_".join(str(y) for y in year_nums)
 
     if len(set(months)) != 12:
         month_str = "_".join(months)
     else:
         month_str = "all"
 
+    var_str = "_".join(
+        ["".join(word[0] for word in var.split("_")) for var in variable]
+    )
+    if len(var_str) > 30:
+        var_str = var_str[:2] + "_etc"  # e.g. 2t_etc
+
     if "monthly" in ds_name:
         ds_type = "_monthly"
     else:
         ds_type = ""
 
-    file_name = base_name + "_{}_{}".format(year_str, month_str) + ds_type
+    file_name = base_name + "_{}_{}_{}".format(year_str, month_str, var_str) + ds_type
 
     if has_area:
         file_name = file_name + "_area"
 
+    if len(file_name) > 100:
+        file_name = file_name[:100] + "_etc"
+
     file_ext = "grib" if data_format == "grib" else "nc"
     file_name = file_name + "." + file_ext
+
     return file_name
 
 
@@ -215,17 +239,27 @@ if __name__ == "__main__":
     dataset = "reanalysis-era5-land-monthly-means"
     request = {
         "product_type": ["monthly_averaged_reanalysis"],
-        "variable": ["2m_temperature"],
-        "year": ["2024"],
+        "variable": ["2m_temperature", "total_precipitation"],
+        "year": ["2020", "2021", "2022", "2023", "2024", "2025"],
         "month": [
             "01",
             "02",
+            "03",
+            "04",
+            "05",
+            "06",
+            "07",
+            "08",
+            "09",
+            "10",
+            "11",
+            "12",
         ],
         "time": ["00:00"],
         "data_format": data_format,
         "download_format": "unarchived",
     }
-    request["area"] = [90, -90, -90, 90]  # [N, W, S, E]
+    # request["area"] = [90, -90, -90, 90]  # [N, W, S, E]
     file_name = get_filename(
         dataset,
         data_format,
@@ -233,6 +267,7 @@ if __name__ == "__main__":
         request["month"],
         "area" in request,
         "era5_data",
+        request["variable"],
     )
     output_file = data_folder / file_name
 
