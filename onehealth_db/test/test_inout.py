@@ -371,7 +371,7 @@ def test_get_filename_vars():
 
 def test_get_filename_long():
     # long vars
-    vars = [
+    var_names = [
         "2m_temperature",
         "total_precipitation",
         "surface_pressure",
@@ -391,7 +391,7 @@ def test_get_filename_long():
         ["01", "02"],
         True,
         "era5_data",
-        vars,
+        var_names,
     )
     assert file_name == "era5_data_2025_01_02_2t_etc_monthly_area.nc"
 
@@ -404,7 +404,7 @@ def test_get_filename_long():
         ["01", "02"],
         True,
         "era5_data",
-        vars,
+        var_names,
     )
     assert file_name == "era5_data_1900_2029_01_02_2t_etc_monthly_area.nc"
 
@@ -416,7 +416,7 @@ def test_get_filename_long():
         ["01", "02"],
         True,
         "era5_data",
-        vars,
+        var_names,
     )
     assert file_name == "era5_data_2020_2021_2023_01_02_2t_etc_monthly_area.nc"
 
@@ -429,7 +429,7 @@ def test_get_filename_long():
         ["01", "02"],
         True,
         "era5_data",
-        vars,
+        var_names,
     )
     assert (
         file_name
@@ -445,7 +445,7 @@ def test_get_filename_long():
         ["01", "02"],
         True,
         "era5_data_plus_something_very_long_to_make_the_name_longer_than_100_chars",
-        vars,
+        var_names,
     )
     assert (
         file_name

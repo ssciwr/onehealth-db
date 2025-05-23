@@ -144,8 +144,8 @@ def create_session(engine):
     """
     Create a new session for the database.
     """
-    Session = sessionmaker(bind=engine)
-    return Session()
+    session_class = sessionmaker(bind=engine)
+    return session_class()
 
 
 def create_tables(engine):

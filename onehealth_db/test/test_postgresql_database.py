@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm.session import Session, sessionmaker
 import geopandas as gpd
 from shapely.geometry import Polygon
+import math
 
 
 # for local docker desktop,
@@ -38,8 +39,8 @@ def get_engine_without_tables(get_docker_image):
 @pytest.fixture(scope="function")
 def get_session(get_engine_with_tables):
     connection = get_engine_with_tables.connect()
-    Session = sessionmaker(bind=connection)
-    session = Session()
+    session_class = sessionmaker(bind=connection)
+    session = session_class()
 
     yield session
 
@@ -294,10 +295,10 @@ def test_insert_grid_points(get_session):
 
     result = get_session.query(postdb.GridPoint).all()
     assert len(result) == 4
-    assert result[0].latitude == 0.0
-    assert result[0].longitude == 0.0
-    assert result[1].latitude == 0.0
-    assert result[1].longitude == 1.0
+    assert math.isclose(result[0].latitude, 0.0, abs_tol=1e-5)
+    assert math.isclose(result[0].longitude, 0.0, abs_tol=1e-5)
+    assert math.isclose(result[1].latitude, 0.0, abs_tol=1e-5)
+    assert math.isclose(result[1].longitude, 1.0, abs_tol=1e-5)
 
     # clean up
     get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
@@ -385,7 +386,8 @@ def test_insert_var_types(get_session, get_var_type_list):
 
 @pytest.fixture()
 def get_dataset():
-    data = np.random.rand(2, 3, 2) * 1000 + 273.15
+    rng = np.random.default_rng(42)
+    data = rng.random((2, 3, 2)) * 1000 + 273.15
     data_array = xr.DataArray(
         data,
         dims=["latitude", "longitude", "time"],
