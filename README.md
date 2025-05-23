@@ -39,6 +39,7 @@ source_name_list_of_years_list_of_months_list_of_vars[_montly][_area]_raw.ext
 
 ## Population data from ISIMIP
 Perform the following steps to download population data used for this project:
+
 * go to [ISIMIP website](https://data.isimip.org/)
 * search `population` from the search bar
 * choose simulation round `ISIMIP3a`
@@ -53,6 +54,7 @@ The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals
 In this project, we use `EPSG: 4326`
 
 **Note**:
+
 * This NUTS definition file is only for Europe.
 * If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefile.
 
