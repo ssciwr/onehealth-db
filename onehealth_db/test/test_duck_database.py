@@ -7,7 +7,7 @@ from importlib import resources
 def check_table_name(con, table_name):
     """Check if the table name exists in the database."""
     check_name = con.execute(
-        f"""
+        """
         SELECT * FROM information_schema.tables
         WHERE table_name = ?
         """,

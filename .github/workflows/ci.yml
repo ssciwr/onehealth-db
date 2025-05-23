@@ -11,6 +11,8 @@ jobs:
       docker:
         image: docker:24.0.0
         options: --privileged
+    env:
+      DB_URL: ${ { secrets.DB_URL }}
     steps:
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5

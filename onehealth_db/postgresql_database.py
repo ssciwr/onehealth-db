@@ -19,7 +19,6 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 import xarray as xr
-import pandas as pd
 import time
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -270,7 +269,6 @@ def extract_time_point(time_point: np.datetime64) -> tuple[int, int, int]:
         )
     else:
         raise ValueError("Invalid time point format.")
-        return None, None, None, None, None, None
 
 
 def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndarray:
@@ -490,7 +488,8 @@ def insert_var_values(
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = []
         for i in range(0, len(var_values), BATCH_SIZE):
-            batch = var_values[i : i + BATCH_SIZE]
+            e_batch = i + BATCH_SIZE
+            batch = var_values[i:e_batch]
             futures.append(executor.submit(insert_batch, batch))
 
         for _ in tqdm(as_completed(futures), total=len(futures)):

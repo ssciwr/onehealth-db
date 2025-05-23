@@ -3,7 +3,7 @@ from onehealth_db import postgresql_database as postdb
 import numpy as np
 import xarray as xr
 from testcontainers.postgres import PostgresContainer
-from sqlalchemy import create_engine, text, inspect, MetaData
+from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm.session import Session, sessionmaker
 import geopandas as gpd
 from shapely.geometry import Polygon
@@ -312,6 +312,14 @@ def test_extract_time_point():
     for time_point, expected_data in time_points.items():
         year, month, day, _, _, _ = postdb.extract_time_point(time_point)
         assert (year, month, day) == expected_data
+
+
+def test_extract_time_point_invalid():
+    with pytest.raises(ValueError):
+        postdb.extract_time_point("2024-01-01")
+
+    with pytest.raises(ValueError):
+        postdb.extract_time_point(1)
 
 
 @pytest.fixture
