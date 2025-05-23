@@ -20,7 +20,7 @@ Will be refactored later. See [issue #8](https://github.com/ssciwr/onehealth-db/
 
 File name's structure:
 ```
-source_name_list_of_years_list_of_months_list_of_vars[_montly][_area].ext
+source_name_list_of_years_list_of_months_list_of_vars[_montly][_area]_raw.ext
 ```
 * `source_name` is `"era5_data"`,
 * All years are firstly sorted.
@@ -32,6 +32,8 @@ source_name_list_of_years_list_of_months_list_of_vars[_montly][_area].ext
     * If this concatenated string is longer than 30 characters, we only keep the first 2 characters and replace the the rest by `"_etc"`
 * If the file was downloaded from a monthly dataset, `"_monthly"` is presented in the file name
 * If the downloaded data is only for an area of the grid (instead of the whole map), `"_area"` is inserted into the file name
+* If the part before `"_raw"` is longer than 100 characters, only the first 100 characters are kept and the rest is replaced by `"_etc"`
+* `"_raw"` is added at the end to indicate that the file is raw data
 * Extension `ext` of the file can be `.nc` or `.grib`
 
 
@@ -48,11 +50,24 @@ Perform the following steps to download population data used for this project:
 ## Getting the NUTS regions
 The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010) and corresponding shapefiles can be downloaded [here](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).
 
+In this project, we use `EPSG: 4326`
+
+**Note**:
+* This NUTS definition file is only for Europe.
+* If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefile.
+
+#### `NUTS_ID` explaination:
+* Structure of `NUTS_ID`: `<country><level>`
+* `country`: 2 letters, representing name of a country, e.g. DE
+* `level`: 0 to 3 letters or numbers, signifying the level of the NUTS region
+
+
 ## Run PostgreSQL database with Docker
 ```bash
 docker compose up -d
 ```
 Use option `-d` to run the docker service in background.
 
-## Naming convention for data files in data lake
-(will be updated while implementing preprocessing functions)
+## Data flowchart
+Downloaded data files will go through preprocessing steps as follows:
+![data-flow.jpg](/docs/source/_static/onehealth_data_flow.jpg)
