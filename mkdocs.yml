@@ -1,11 +1,15 @@
-site_name: OneHealth Project
+site_name: One Health Platform
 site_url: https://ssciwr.github.io/onehealth-db/
 theme:
   name: material
+  #logo: path/to/file.png
 
 nav:
   - Home: index.md
-  - Sample Page: sample.md
+  - About: about.md
+  - Data: data.md
+  - Data Lake & Database: datalake_database.md
+  - Contact: contact.md
 
 plugins:
   - search
