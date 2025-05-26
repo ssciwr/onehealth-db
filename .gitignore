@@ -124,9 +124,13 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# sample data 
+# sample data
 data
+!onehealth_db/test/data
 !docs/index.html
 # keep the folder structure for input/output data below package level
 !data/in/.keep
 !data/out/.keep
+
+# private test data
+pdf_files/*.pdf
