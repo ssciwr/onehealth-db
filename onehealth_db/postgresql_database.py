@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     ForeignKeyConstraint,
+    engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
@@ -310,11 +311,11 @@ def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndar
     return sorted(unique_time_points)
 
 
-def insert_time_points(session, time_point_data: list[(np.ndarray, bool)]):
+def insert_time_points(session: Session, time_point_data: list[(np.ndarray, bool)]):
     """Insert time points into the database.
 
     Args:
-        engine: SQLAlchemy engine object.
+        session (Session): SQLAlchemy session object.
         time_point_data: List of tuples containing time point data, and its flag.
             If flag is True, the time point needs to be converted to monthly.
     """
@@ -402,7 +403,7 @@ def convert_yearly_to_monthly(ds: xr.Dataset) -> xr.Dataset:
 
 
 def insert_var_values(
-    engine,
+    engine: engine.Engine,
     ds: xr.Dataset,
     var_name: str,
     grid_id_map: dict,
@@ -413,13 +414,13 @@ def insert_var_values(
     """Insert variable values into the database.
 
     Args:
-        engine: SQLAlchemy engine object.
-        ds: xarray dataset with variable data.
-        var_name: Name of the variable to insert.
-        grid_id_map: Mapping of grid points to IDs.
-        time_id_map: Mapping of time points to IDs.
-        var_id_map: Mapping of variable types to IDs.
-        to_monthly: Whether to convert yearly data to monthly data.
+        engine (engine.Engine): SQLAlchemy engine object.
+        ds (xr.Dataset): xarray dataset with variable data.
+        var_name (str): Name of the variable to insert.
+        grid_id_map (dict): Mapping of grid points to IDs.
+        time_id_map (dict): Mapping of time points to IDs.
+        var_id_map (dict): Mapping of variable types to IDs.
+        to_monthly (bool): Whether to convert yearly data to monthly data.
     """
     if to_monthly:
         # convert yearly data to monthly data
@@ -500,18 +501,24 @@ def insert_var_values(
 
 
 def get_var_value(
-    session, var_name: str, lat: float, lon: float, year: int, month: int, day: int
-):
+    session: Session,
+    var_name: str,
+    lat: float,
+    lon: float,
+    year: int,
+    month: int,
+    day: int,
+) -> float | int | str | None:
     """Get variable value from the database.
 
     Args:
-        session: SQLAlchemy session object.
-        var_name: Name of the variable to get.
-        lat: Latitude of the grid point.
-        lon: Longitude of the grid point.
-        year: Year of the time point.
-        month: Month of the time point.
-        day: Day of the time point.
+        session (Session): SQLAlchemy session object.
+        var_name (str): Name of the variable to retrieve.
+        lat (float): Latitude of the grid point.
+        lon (float): Longitude of the grid point.
+        year (int): Year of the time point.
+        month (int): Month of the time point.
+        day (int): Day of the time point.
 
     Returns:
         Value of the variable at the specified grid point and time point.
