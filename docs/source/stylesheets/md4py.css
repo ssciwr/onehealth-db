@@ -1,0 +1,4 @@
+/*change font of module heading*/
+.moduleh1 {
+    font-family: "Courier New", Courier, monospace !important;
+}

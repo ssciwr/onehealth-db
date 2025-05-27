@@ -47,5 +47,5 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ssciwr/onehealth"
-Issues = "https://github.com/ssciwr/onehealth/issues"
+Homepage = "https://github.com/ssciwr/onehealth-db"
+Issues = "https://github.com/ssciwr/onehealth-db/issues"

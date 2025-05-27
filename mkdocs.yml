@@ -12,36 +12,45 @@ nav:
   - Data: data.md
   - Data Lake & Database: datalake_database.md
   - References:
-    - Python Scripts:
-      - inout.py: inout.md
-      - postgresql_database.py: postgresql_db.md
-      - duck_database.py: duck_db.md
-    - Notebooks:
+    - Package Modules: reference/
+    - Demonstration Notebooks:
       - data_pipeline.ipynb: source/notebooks/data_pipeline.ipynb
       - insert_data.ipynb: source/notebooks/insert_data.ipynb
   - Contact: contact.md
+
+extra_css:
+  - source/stylesheets/md4py.css
 
 plugins:
   - search
   - include-markdown
   - glightbox
+  - mkdocs-jupyter:
+      execute: false
+      ignore_h1_titles: true
+  - gen-files:
+      scripts:
+        - _scripts/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
   - mkdocstrings:
       default_handler: python
       handlers:
         python:
           options:
-            show_source: false
-  - mkdocs-jupyter:
-      execute: false
-      ignore_h1_titles: true
+            show_source: true
+            show_symbol_type_heading: true
+            show_root_heading: false
 
 markdown_extensions:
+  - attr_list
   - pymdownx.arithmatex:
       generic: true
-  - attr_list
   - md_in_html
   - pymdownx.blocks.caption
 
 extra_javascript:
-  - javascripts/mathjax.js
+  - source/javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - source/javascripts/md4py.js
