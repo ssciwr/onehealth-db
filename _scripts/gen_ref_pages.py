@@ -33,7 +33,7 @@ for path in sorted(src.glob("*.py")):
     with mkdocs_gen_files.open(full_doc_path, "w") as fd:
         ident = ".".join(parts)
         # attach html class named moduleh1
-        fd.write(f"# {parts[-1]} module" + " {: .moduleh1 }\n\n")
+        fd.write(f"# {ident} module" + " {: .moduleh1 }\n\n")
         fd.write(f"::: {ident}\n")
 
     # set edit_uri

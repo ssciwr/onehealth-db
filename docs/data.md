@@ -1,10 +1,16 @@
+---
+title: Data
+hide:
+- navigation
+---
+
 # Data
 
 The supported models rely on data from the [Copernicus's Climate Data Store](https://cds.climate.copernicus.eu/), [Eurostat's NUTS definition](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010), and [ISIMIP's population data](https://data.isimip.org/).
 
 ## Copernicus Data
 
-The [CDS's ERA5-Land monthly](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-monthly-means?tab=overview) dataset is currently being used for now. You can either download the data directly from Climate Data Store (CDS) website or use the provided Python script, [`inout.py`]().
+The [CDS's ERA5-Land monthly](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-monthly-means?tab=overview) dataset is currently being used for now. You can either download the data directly from Climate Data Store (CDS) website or use the provided Python script, [`inout module`](reference/inout.md).
 
 For the latter option, please set up the CDS API as outlined below and take note of the naming convention used for the downloaded files.
 

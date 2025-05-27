@@ -1,3 +1,9 @@
+---
+title: About
+hide:
+- navigation
+---
+
 # About
 
 TBU.

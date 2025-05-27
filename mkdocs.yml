@@ -2,12 +2,16 @@ site_name: One Health Platform
 site_url: https://ssciwr.github.io/onehealth-db/
 repo_url: https://github.com/ssciwr/onehealth-db
 repo_name: "ssciwr/onehealth-db"
-theme:
-  name: material
-  #logo: path/to/file.png
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
 
 nav:
-  - Home: index.md
+  - Home:
+    - Overview: index.md
+    - License: license.md
   - About: about.md
   - Data: data.md
   - Data Lake & Database: datalake_database.md
@@ -16,7 +20,17 @@ nav:
     - Demonstration Notebooks:
       - data_pipeline.ipynb: source/notebooks/data_pipeline.ipynb
       - insert_data.ipynb: source/notebooks/insert_data.ipynb
+  - Issues: issues.md
   - Contact: contact.md
+
+theme:
+  name: material
+  #logo: path/to/file.png
+  features:
+    - search.highlight
+    - search.suggest
+    - navigation.tabs
+    - toc.follow
 
 extra_css:
   - source/stylesheets/md4py.css

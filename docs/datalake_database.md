@@ -1,3 +1,9 @@
+---
+title: Data Lake & Database Backend
+hide:
+- navigation
+---
+
 # Data Lake & Database Backend
 
 ## Data flowchart
