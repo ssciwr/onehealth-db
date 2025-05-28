@@ -15,14 +15,21 @@ The value for `DOCKER_HOST` in CLI is still `unix:///var/run/docker.sock`.
 While using `mkdocs serve` you might get warning as:
 > DeprecationWarning: Jupyter is migrating its paths to use standard platformdirs given by the platformdirs library.  To remove this warning and see the appropriate new directories, set the environment variable `JUPYTER_PLATFORM_DIRS=1` and then run `jupyter --paths`.
 
-To address this warning on Linux *temporarily* for every session:
+To address this warning *temporarily* for every session:
 
-```shell
-export JUPYTER_PLATFORM_DIRS=1
-mkdocs serve
-```
+=== "bash"
+    ```shell
+    export JUPYTER_PLATFORM_DIRS=1
+    mkdocs serve
+    ```
 
-Or *permanently* save the variable enrionment into your conda environment
+=== "powershell"
+    ```shell
+    $env:JUPYTER_PLATFORM_DIRS=1
+    mkdocs serve
+    ```
+
+Or *permanently* by saving the variable enrionment into your conda environment
 
 ```shell
 conda activate your_env

@@ -90,11 +90,33 @@ plugins:
       handlers:
         python:
           options:
-            show_source: true
+            docstring_style: google
+            docstring_section_style: list
+            show_source: false
             show_symbol_type_heading: true
             show_root_heading: true
             show_symbol_type_toc: true
             show_submodules: true
+            heading_level: 2
+            parameter_headings: false
+            separate_signature: true
+            show_signature_annotations: false
+            signature_crossrefs: true
+            summary: true
+            docstring_options:
+              ignore_init_summary: true
+            merge_init_into_class: true
+            show_if_no_docstring: true
+            show_docstring_attributes: true
+            show_docstring_functions: true
+            show_docstring_classes: true
+            show_docstring_modules: true
+            show_docstring_description: true
+            show_docstring_examples: true
+            show_docstring_raises: true
+            show_docstring_returns: true
+  - minify:
+      minify_html: !ENV [DEPLOY, false]
 
 markdown_extensions:
   - attr_list
@@ -111,11 +133,15 @@ markdown_extensions:
       use_pygments: true
       linenums: true
       linenums_style: pymdownx-inline
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.inlinehilite
+  - pymdownx.magiclink
   - pymdownx.snippets:
       auto_append:
         - docs_extra/abbreviations.md
-  - pymdownx.superfences
   - pymdownx.smartsymbols:
       trademark: true
       copyright: true
@@ -126,6 +152,15 @@ markdown_extensions:
       notequal: true
       fractions: true
       ordinal_numbers: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tilde
+  - toc:
+      permalink: ⚓︎
 
 extra_javascript:
   - source/javascripts/mathjax.js

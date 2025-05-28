@@ -42,7 +42,7 @@ source_name_list_of_years_list_of_months_list_of_vars[_montly][_area]_raw.ext
 ## Eurostat's NUTS definition 
 The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010) and corresponding shapefiles can be downloaded [here](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).
 
-!!! note
+???+ note
     * In this project, we use EPSG: 4326
     * This NUTS definition file is only for Europe.
     * If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefile.
