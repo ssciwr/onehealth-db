@@ -47,7 +47,7 @@ The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals
     * This NUTS definition file is only for Europe.
     * If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefile.
 
-#### `NUTS_ID` explaination:
+#### `NUTS_ID` explanation:
 * Structure of `NUTS_ID`: `<country><level>`
 * `country`: 2 letters, representing name of a country, e.g. DE
 * `level`: 0 to 3 letters or numbers, signifying the level of the NUTS region
