@@ -17,9 +17,7 @@ for path in sorted(src.glob("*.py")):
 
     if parts[-1] == "__init__":
         parts = parts[:-1]
-        if not parts:
-            continue
-        elif parts[-1] == script_folder:
+        if not parts or parts[-1] == script_folder:
             continue  # no md file for the main folder
         doc_path = doc_path.with_name("index.md")  # bind page init to section
         full_doc_path = full_doc_path.with_name("index.md")
