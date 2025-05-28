@@ -6,7 +6,7 @@ from typing import TypeVar, Union
 
 
 def download_data(output_file: Path, dataset: str, request: dict):
-    """Download data from Copernicus Climate Data Store (CDS) using the cdsapi.
+    """Download data from Copernicus's CDS using the cdsapi.
 
     Args:
         output_file (Path): The path to the output file where data will be saved.
@@ -174,7 +174,7 @@ def get_filename(
     has_area: bool,
     base_name: str = "era5_data",
     variable: list = ["2m_temperature"],
-):
+) -> str:
     """Get file name based on dataset name, base name, years, months and area.
 
     Args:
@@ -187,6 +187,7 @@ def get_filename(
             Default is "era5_data".
         variable (list): List of variables.
             Default is ["2m_temperature"].
+
     Returns:
         str: Generated file name.
     """
