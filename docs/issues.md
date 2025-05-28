@@ -29,7 +29,7 @@ To address this warning *temporarily* for every session:
     mkdocs serve
     ```
 
-Or *permanently* by saving the variable enrionment into your conda environment
+Or *permanently* by saving the variable value into your conda environment
 
 ```shell
 conda activate your_env

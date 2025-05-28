@@ -1,4 +1,4 @@
-// hide the first line in TOC of genereted HTML for each module
+// hide the first line in TOC of generated HTML for each module
 document.querySelectorAll('a[href^="#onehealth_db."]').forEach(el => {
     // get the part after "#onehealth_db."
     const suffix = el.getAttribute('href').slice('#onehealth_db.'.length);

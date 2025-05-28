@@ -27,7 +27,7 @@ source_name_list_of_years_list_of_months_list_of_vars[_montly][_area]_raw.ext
 
 * `source_name` is `"era5_data"`,
 * All years are firstly sorted.
-    * If years are continuous values, `list_of_years`is a concatenate of `min` and `max` values. Otherwises, `list_of_years` is a join of all years.
+    * If years are continuous values, `list_of_years`is a concatenate of `min` and `max` values. Otherwise, `list_of_years` is a join of all years.
     * However, if there are more than 5 years, we only keep the first 5 years and replace the rest by `"_etc"`
 * `list_of_months`can be `"all"`, representing a whole year, or a join of all months
 * Each variable has an abbreviation derived by the first letter of each word in the variable name (e.g. `tp` for `total precipitation`).
