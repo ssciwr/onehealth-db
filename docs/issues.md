@@ -17,18 +17,20 @@ While using `mkdocs serve` you might get warning as:
 
 To address this warning on Linux *temporarily* for every session:
 
-```
+```shell
 export JUPYTER_PLATFORM_DIRS=1
 mkdocs serve
 ```
 
 Or *permanently* save the variable enrionment into your conda environment
 
-```
+```shell
 conda activate your_env
-conda env config vars set JUPYTER_PLATFORM_DIRS=1
+conda env config vars set JUPYTER_PLATFORM_DIRS=1 #(1)!
 ```
-(reactivate `your_env` is needed)
+{ .annotate }
+
+1.  reactivate `your_env` would be needed
 
 ## Other issues
 Other issues are listed [here](https://github.com/ssciwr/onehealth-db/issues)

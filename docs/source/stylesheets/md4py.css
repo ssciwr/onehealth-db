@@ -1,6 +1,12 @@
-/*change font of module heading*/
+/*customized module heading*/
 .moduleh1 {
-    font-family: "Courier New", Courier, monospace !important;
+    display: none !important;
+    /*font-family: "Courier New", Courier, monospace !important;
     font-size: 1.7em !important;
-    color: rgb(9, 165, 9) !important;
+    color: rgb(9, 165, 9) !important;*/
+}
+
+/*generated module heading*/
+h2.doc.doc-heading {
+    font-size: 2em !important;
 }

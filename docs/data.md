@@ -6,11 +6,11 @@ hide:
 
 # Data
 
-The supported models rely on data from the [Copernicus's Climate Data Store](https://cds.climate.copernicus.eu/), [Eurostat's NUTS definition](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010), and [ISIMIP's population data](https://data.isimip.org/).
+The supported models rely on data from the [Copernicus's CDS](https://cds.climate.copernicus.eu/), [Eurostat's NUTS definition](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010), and [ISIMIP's population data](https://data.isimip.org/).
 
 ## Copernicus Data
 
-The [CDS's ERA5-Land monthly](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-monthly-means?tab=overview) dataset is currently being used for now. You can either download the data directly from Climate Data Store (CDS) website or use the provided Python script, [`inout module`](reference/inout.md).
+The [CDS's ERA5-Land monthly](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-monthly-means?tab=overview) dataset is currently being used for now. You can either download the data directly from CDS website or use the provided Python script, [`inout module`](reference/inout.md).
 
 For the latter option, please set up the CDS API as outlined below and take note of the naming convention used for the downloaded files.
 
@@ -21,9 +21,10 @@ Create a `.cdsapirc` file containing your personal access token by following [th
 
 ### Naming convention
 The filenames of the downloaded netCDF files follow this structure:
-```
+```text linenums="0"
 source_name_list_of_years_list_of_months_list_of_vars[_montly][_area]_raw.ext
 ```
+
 * `source_name` is `"era5_data"`,
 * All years are firstly sorted.
     * If years are continuous values, `list_of_years`is a concatenate of `min` and `max` values. Otherwises, `list_of_years` is a join of all years.
@@ -41,12 +42,10 @@ source_name_list_of_years_list_of_months_list_of_vars[_montly][_area]_raw.ext
 ## Eurostat's NUTS definition 
 The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010) and corresponding shapefiles can be downloaded [here](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).
 
-In this project, we use `EPSG: 4326`
-
-**Note**:
-
-* This NUTS definition file is only for Europe.
-* If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefile.
+!!! note
+    * In this project, we use EPSG: 4326
+    * This NUTS definition file is only for Europe.
+    * If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefile.
 
 #### `NUTS_ID` explaination:
 * Structure of `NUTS_ID`: `<country><level>`
