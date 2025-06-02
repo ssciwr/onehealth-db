@@ -1,0 +1,61 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "data_format": {
+            "type": "string",
+            "enum": ["netcdf", "grib"],
+            "default": "netcdf",
+            "description": "Format of the data files."
+        },
+        "data_folder": {
+            "type": "string",
+            "default": "data/in/",
+            "description": "Path to the folder containing the data files."
+        },
+        "dataset": {
+            "type": "string",
+            "default": "reanalysis-era5-land-monthly-means",
+            "description": "Name of the dataset to be processed."
+        },
+        "adjust_longitude": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to adjust longitude values to the range [-180, 180]."
+        },
+        "convert_kelvin_to_celsius": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to convert temperature values from Kelvin to Celsius."
+        },
+        "convert_m_to_mm_precipitation": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to convert precipitation values from meters to millimeters."
+        },
+        "downsample_grid": {
+            "type": "number",
+            "default": 0.5,
+            "description": "Value of the target grid resolution."
+        },
+        "truncate_time": {
+            "type": "number",
+            "default": 1950,
+            "description": "Year to truncate the time series from."
+        },
+        "rename": {
+            "type": "object",
+            "patternProperties": {
+                "^.*$": {
+                    "type": "string"
+                }
+            },
+            "default": {
+                "lat": "latitude",
+                "lon": "longitude",
+                "valid_time": "time"
+            },
+            "description": "Mapping of variable names to their new names."
+        }
+    }
+}
