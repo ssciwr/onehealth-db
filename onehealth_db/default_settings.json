@@ -1,12 +1,9 @@
 {
-    "data_format": "netcdf",
-    "data_folder": "data/in/",
-    "dataset": "reanalysis-era5-land-monthly-means",
     "adjust_longitude": true,
     "convert_kelvin_to_celsius": true,
     "convert_m_to_mm_precipitation": true,
     "downsample_grid": 0.5,
-    "truncate_time": 1950,
+    "truncate_year": 1950,
     "rename": {
         "lat": "latitude",
         "lon": "longitude",
