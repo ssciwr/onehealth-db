@@ -43,6 +43,11 @@ dev = [
     "mkdocs-material",
     "mkdocs-include-markdown-plugin",
     "mkdocs-glightbox",
+    "mkdocs-jupyter",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
+    "mkdocs-minify-plugin",
     "mkdocstrings-python",
 ]
 
