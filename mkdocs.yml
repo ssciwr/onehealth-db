@@ -21,6 +21,7 @@ nav:
     - Package Modules: reference/
     - Demonstration Notebooks:
       - data_pipeline.ipynb: source/notebooks/data_pipeline.ipynb
+      - prepare_data.ipynb: source/notebooks/prepare_data.ipynb
       - insert_data.ipynb: source/notebooks/insert_data.ipynb
   - Issues: issues.md
   - Contact: contact.md
