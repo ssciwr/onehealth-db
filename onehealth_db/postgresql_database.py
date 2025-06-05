@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     ForeignKeyConstraint,
+    engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,6 +23,7 @@ import xarray as xr
 import time
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Type
 
 
 STR_CRS = "4326"
@@ -32,10 +34,16 @@ MAX_WORKERS = 4
 
 # Base declarative class
 class Base(DeclarativeBase):
+    """
+    Base class for all models in the database."""
+
     pass
 
 
 class NutsDef(Base):
+    """
+    NUTS definition table."""
+
     __tablename__ = "nuts_def"
 
     nuts_id: Mapped[String] = mapped_column(String(), primary_key=True)
@@ -52,6 +60,9 @@ class NutsDef(Base):
 
 
 class GridPoint(Base):
+    """
+    Grid point table for storing latitude and longitude coordinates."""
+
     __tablename__ = "grid_point"
 
     id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
@@ -76,6 +87,9 @@ class GridPoint(Base):
 
 
 class TimePoint(Base):
+    """
+    Time point table for storing year, month, and day."""
+
     __tablename__ = "time_point"
 
     id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
@@ -89,6 +103,9 @@ class TimePoint(Base):
 
 
 class VarType(Base):
+    """
+    Variable type table for storing variable metadata."""
+
     __tablename__ = "var_type"
 
     id: Mapped[int] = mapped_column(Integer(), primary_key=True, autoincrement=True)
@@ -100,6 +117,11 @@ class VarType(Base):
 
 
 class VarValue(Base):
+    """
+    Variable value table for storing variable values at specific
+    grid points and time points.
+    """
+
     __tablename__ = "var_value"
 
     id: Mapped[int] = mapped_column(BigInteger(), primary_key=True, autoincrement=True)
@@ -131,34 +153,49 @@ class VarValue(Base):
     )
 
 
-def install_postgis(engine):
+def install_postgis(engine: engine.Engine):
     """
     Install PostGIS extension on the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
     """
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
         print("PostGIS extension installed.")
 
 
-def create_session(engine):
+def create_session(engine: engine.Engine) -> Session:
     """
     Create a new session for the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+
+    Returns:
+        Session: SQLAlchemy session object.
     """
     session_class = sessionmaker(bind=engine)
     return session_class()
 
 
-def create_tables(engine):
+def create_tables(engine: engine.Engine):
     """
-    Create tables in the database.
+    Create all tables in the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
     """
     Base.metadata.create_all(engine)
     print("All tables created.")
 
 
-def create_or_replace_tables(engine):
+def create_or_replace_tables(engine: engine.Engine):
     """
     Create or replace tables in the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
     """
     Base.metadata.drop_all(engine)
     print("All tables dropped.")
@@ -169,6 +206,10 @@ def initialize_database(db_url: str, replace: bool = False):
     """
     Initialize the database by creating the engine and tables, and installing PostGIS.
     If replace is True, it will drop and recreate the tables.
+
+    Args:
+        db_url (str): Database URL for SQLAlchemy.
+        replace (bool): Whether to drop and recreate the tables. Defaults to False.
     """
     # create engine
     engine = create_engine(db_url)  # remove echo=True to show just errors in terminal
@@ -187,9 +228,13 @@ def initialize_database(db_url: str, replace: bool = False):
     return engine
 
 
-def insert_nuts_def(engine, shapefile_path: Path):
+def insert_nuts_def(engine: engine.Engine, shapefile_path: Path):
     """
     Insert NUTS definition data into the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        shapefile_path (Path): Path to the NUTS shapefile.
     """
     nuts_data = gpd.GeoDataFrame.from_file(shapefile_path)
     # rename columns to match the database schema
@@ -211,9 +256,13 @@ def insert_nuts_def(engine, shapefile_path: Path):
     print("NUTS definition data inserted.")
 
 
-def add_data_list(session, data_list: list):
+def add_data_list(session: Session, data_list: list):
     """
     Add a list of data instances to the database.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        data_list (list): List of data instances to add.
     """
     try:
         session.add_all(data_list)
@@ -223,9 +272,14 @@ def add_data_list(session, data_list: list):
         print(f"Error inserting data: {e}")
 
 
-def add_data_list_bulk(session, data_dict_list: list, class_type):
+def add_data_list_bulk(session: Session, data_dict_list: list, class_type: Type[Base]):
     """
     Add a list of data to the database in bulk.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        data_dict_list (list): List of dictionaries containing data to insert.
+        class_type (Type[Base]): SQLAlchemy model class type to insert data into.
     """
     try:
         session.bulk_insert_mappings(class_type, data_dict_list)
@@ -235,9 +289,14 @@ def add_data_list_bulk(session, data_dict_list: list, class_type):
         print(f"Error inserting data: {e}")
 
 
-def insert_grid_points(session, latitudes: np.ndarray, longitudes: np.ndarray):
+def insert_grid_points(session: Session, latitudes: np.ndarray, longitudes: np.ndarray):
     """
     Insert grid points into the database.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        latitudes (np.ndarray): Array of latitudes.
+        longitudes (np.ndarray): Array of longitudes.
     """
     # create list of dictionaries for bulk insert
     grid_points = [
@@ -253,9 +312,17 @@ def insert_grid_points(session, latitudes: np.ndarray, longitudes: np.ndarray):
     print("Grid points inserted.")
 
 
-def extract_time_point(time_point: np.datetime64) -> tuple[int, int, int]:
+def extract_time_point(
+    time_point: np.datetime64,
+) -> tuple[int, int, int, int, int, int]:
     """
     Extract year, month, and day from a numpy datetime64 object.
+
+    Args:
+        time_point (np.datetime64): Numpy datetime64 object representing a time point.
+
+    Returns:
+        tuple: A tuple containing year, month, day, hour, minute, second.
     """
     if isinstance(time_point, np.datetime64):
         time_stamp = pd.Timestamp(time_point)
@@ -279,7 +346,7 @@ def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndar
             If flag is True, the time point needs to be converted to monthly.
 
     Returns:
-        Unique of (sorted) time points as a numpy array.
+        np.ndarray: Unique of (sorted) time points as a numpy array.
     """
     time_points = []
     for tpd, yearly in time_point_data:
@@ -310,12 +377,13 @@ def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndar
     return sorted(unique_time_points)
 
 
-def insert_time_points(session, time_point_data: list[(np.ndarray, bool)]):
+def insert_time_points(session: Session, time_point_data: list[(np.ndarray, bool)]):
     """Insert time points into the database.
 
     Args:
-        engine: SQLAlchemy engine object.
-        time_point_data: List of tuples containing time point data, and its flag.
+        session (Session): SQLAlchemy session object.
+        time_point_data (list[(np.ndarray, bool)]): List of tuples containing
+            time point data, and its flag.
             If flag is True, the time point needs to be converted to monthly.
     """
     time_point_values = []
@@ -338,9 +406,13 @@ def insert_time_points(session, time_point_data: list[(np.ndarray, bool)]):
     print("Time points inserted.")
 
 
-def insert_var_types(session, var_types: list[dict]):
+def insert_var_types(session: Session, var_types: list[dict]):
     """
     Insert variable types into the database.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        var_types (list[dict]): List of dictionaries containing variable type data.
     """
     var_types = [
         VarType(
@@ -354,9 +426,18 @@ def insert_var_types(session, var_types: list[dict]):
     print("Variable types inserted.")
 
 
-def get_id_maps(session: Session):
+def get_id_maps(session: Session) -> tuple[dict, dict, dict]:
     """
     Get ID maps for grid points, time points, and variable types.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+
+    Returns:
+        tuple: A tuple containing three dictionaries:\n
+            - grid_id_map: Mapping of (latitude, longitude) to grid point ID.\n
+            - time_id_map: Mapping of datetime64 to time point ID.\n
+            - var_id_map: Mapping of variable name to variable type ID.
     """
     grid_points = session.query(
         GridPoint.id, GridPoint.latitude, GridPoint.longitude
@@ -377,10 +458,12 @@ def get_id_maps(session: Session):
 
 def convert_yearly_to_monthly(ds: xr.Dataset) -> xr.Dataset:
     """Convert yearly data to monthly data.
+
     Args:
-        ds: xarray dataset with yearly data.
+        ds (xr.Dataset): xarray dataset with yearly data.
+
     Returns:
-        xarray dataset with monthly data.
+        xr.Dataset: xarray dataset with monthly data.
     """
     if ds.time.values[0] > ds.time.values[-1]:
         # sort the time points
@@ -402,7 +485,7 @@ def convert_yearly_to_monthly(ds: xr.Dataset) -> xr.Dataset:
 
 
 def insert_var_values(
-    engine,
+    engine: engine.Engine,
     ds: xr.Dataset,
     var_name: str,
     grid_id_map: dict,
@@ -413,13 +496,13 @@ def insert_var_values(
     """Insert variable values into the database.
 
     Args:
-        engine: SQLAlchemy engine object.
-        ds: xarray dataset with variable data.
-        var_name: Name of the variable to insert.
-        grid_id_map: Mapping of grid points to IDs.
-        time_id_map: Mapping of time points to IDs.
-        var_id_map: Mapping of variable types to IDs.
-        to_monthly: Whether to convert yearly data to monthly data.
+        engine (engine.Engine): SQLAlchemy engine object.
+        ds (xr.Dataset): xarray dataset with variable data.
+        var_name (str): Name of the variable to insert.
+        grid_id_map (dict): Mapping of grid points to IDs.
+        time_id_map (dict): Mapping of time points to IDs.
+        var_id_map (dict): Mapping of variable types to IDs.
+        to_monthly (bool): Whether to convert yearly data to monthly data.
     """
     if to_monthly:
         # convert yearly data to monthly data
@@ -500,21 +583,28 @@ def insert_var_values(
 
 
 def get_var_value(
-    session, var_name: str, lat: float, lon: float, year: int, month: int, day: int
-):
+    session: Session,
+    var_name: str,
+    lat: float,
+    lon: float,
+    year: int,
+    month: int,
+    day: int,
+) -> float | int | str | None:
     """Get variable value from the database.
 
     Args:
-        session: SQLAlchemy session object.
-        var_name: Name of the variable to get.
-        lat: Latitude of the grid point.
-        lon: Longitude of the grid point.
-        year: Year of the time point.
-        month: Month of the time point.
-        day: Day of the time point.
+        session (Session): SQLAlchemy session object.
+        var_name (str): Name of the variable to retrieve.
+        lat (float): Latitude of the grid point.
+        lon (float): Longitude of the grid point.
+        year (int): Year of the time point.
+        month (int): Month of the time point.
+        day (int): Day of the time point.
 
     Returns:
-        Value of the variable at the specified grid point and time point.
+        float | int | str | None: Value of the variable at
+            the specified grid point and time point.
     """
     if day != 1:
         print(

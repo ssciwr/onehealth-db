@@ -296,7 +296,7 @@ def test_get_filename_var():
         "era5_data",
         ["2m_temperature"],
     )
-    assert file_name == "era5_data_2025_01_02_2t_monthly_area.nc"
+    assert file_name == "era5_data_2025_01_02_2t_monthly_area_raw.nc"
 
     file_name = inout.get_filename(
         "reanalysis-era5-land-monthly-means",
@@ -320,7 +320,7 @@ def test_get_filename_var():
         "era5_data",
         ["2m_temperature"],
     )
-    assert file_name == "era5_data_2025_all_2t_monthly_area.nc"
+    assert file_name == "era5_data_2025_all_2t_monthly_area_raw.nc"
 
     file_name = inout.get_filename(
         "reanalysis-era5-land",
@@ -331,7 +331,7 @@ def test_get_filename_var():
         "era5_data",
         ["2m_temperature"],
     )
-    assert file_name == "era5_data_2025_01_2t_area.nc"
+    assert file_name == "era5_data_2025_01_2t_area_raw.nc"
 
     file_name = inout.get_filename(
         "reanalysis-era5-land",
@@ -342,7 +342,7 @@ def test_get_filename_var():
         "era5_data",
         ["2m_temperature"],
     )
-    assert file_name == "era5_data_2025_01_02_2t.nc"
+    assert file_name == "era5_data_2025_01_02_2t_raw.nc"
 
     file_name = inout.get_filename(
         "reanalysis-era5-land",
@@ -353,7 +353,7 @@ def test_get_filename_var():
         "era5_data",
         ["2m_temperature"],
     )
-    assert file_name == "era5_data_2025_01_02_2t_area.grib"
+    assert file_name == "era5_data_2025_01_02_2t_area_raw.grib"
 
 
 def test_get_filename_vars():
@@ -366,7 +366,7 @@ def test_get_filename_vars():
         "era5_data",
         ["2m_temperature", "total_precipitation"],
     )
-    assert file_name == "era5_data_2025_01_02_2t_tp_monthly_area.nc"
+    assert file_name == "era5_data_2025_01_02_2t_tp_monthly_area_raw.nc"
 
 
 def test_get_filename_long():
@@ -393,7 +393,7 @@ def test_get_filename_long():
         "era5_data",
         var_names,
     )
-    assert file_name == "era5_data_2025_01_02_2t_etc_monthly_area.nc"
+    assert file_name == "era5_data_2025_01_02_2t_etc_monthly_area_raw.nc"
 
     # long years and long vars
     years = [str(i) for i in range(1900, 2030)]
@@ -406,7 +406,7 @@ def test_get_filename_long():
         "era5_data",
         var_names,
     )
-    assert file_name == "era5_data_1900_2029_01_02_2t_etc_monthly_area.nc"
+    assert file_name == "era5_data_1900_2029_01_02_2t_etc_monthly_area_raw.nc"
 
     # non-continuous years and long vars
     file_name = inout.get_filename(
@@ -418,7 +418,7 @@ def test_get_filename_long():
         "era5_data",
         var_names,
     )
-    assert file_name == "era5_data_2020_2021_2023_01_02_2t_etc_monthly_area.nc"
+    assert file_name == "era5_data_2020_2021_2023_01_02_2t_etc_monthly_area_raw.nc"
 
     # non-continuous years with more than 5 years
     years = [str(i) for i in range(2020, 2040, 2)]
@@ -433,7 +433,7 @@ def test_get_filename_long():
     )
     assert (
         file_name
-        == "era5_data_2020_2022_2024_2026_2028_etc_01_02_2t_etc_monthly_area.nc"
+        == "era5_data_2020_2022_2024_2026_2028_etc_01_02_2t_etc_monthly_area_raw.nc"
     )
 
     # more than 100 chars
@@ -450,5 +450,5 @@ def test_get_filename_long():
     assert (
         file_name
         == "era5_data_plus_something_very_long_to_make_the_name_longer_than_100_chars_"
-        "1900_2029_01_02_2t_etc_mon_etc.nc"
+        "1900_2029_01_02_2t_etc_mon_etc_raw.nc"
     )

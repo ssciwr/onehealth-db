@@ -15,10 +15,10 @@ def file_to_dataframe(
 
     Args:
         file_path (Path): The path to the file.
-        columns (Union[List[str], Literal["all", "default"]]):
-            The columns to include in the DataFrame.
-            If "all", all columns are included.
-            If "default", default columns are included.
+        columns (Union[List[str], Literal["all", "default"]]):\n
+            The columns to include in the DataFrame.\n
+            If "all", all columns are included.\n
+            If "default", default columns are included.\n
             If a list, only the specified columns are included.
 
     Returns:

@@ -40,8 +40,17 @@ dependencies = [
 dev = [
     "pre-commit",
     "pytest",
+    "mkdocs-material",
+    "mkdocs-include-markdown-plugin",
+    "mkdocs-glightbox",
+    "mkdocs-jupyter",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
+    "mkdocs-minify-plugin",
+    "mkdocstrings-python",
 ]
 
 [project.urls]
-Homepage = "https://github.com/ssciwr/onehealth"
-Issues = "https://github.com/ssciwr/onehealth/issues"
+Homepage = "https://github.com/ssciwr/onehealth-db"
+Issues = "https://github.com/ssciwr/onehealth-db/issues"

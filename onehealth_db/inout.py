@@ -6,7 +6,7 @@ from typing import TypeVar, Union
 
 
 def download_data(output_file: Path, dataset: str, request: dict):
-    """Download data from Copernicus Climate Data Store (CDS) using the cdsapi.
+    """Download data from Copernicus's CDS using the cdsapi.
 
     Args:
         output_file (Path): The path to the output file where data will be saved.
@@ -174,7 +174,7 @@ def get_filename(
     has_area: bool,
     base_name: str = "era5_data",
     variable: list = ["2m_temperature"],
-):
+) -> str:
     """Get file name based on dataset name, base name, years, months and area.
 
     Args:
@@ -187,6 +187,7 @@ def get_filename(
             Default is "era5_data".
         variable (list): List of variables.
             Default is ["2m_temperature"].
+
     Returns:
         str: Generated file name.
     """
@@ -226,6 +227,9 @@ def get_filename(
     if len(file_name) > 100:
         file_name = file_name[:100] + "_etc"
 
+    # add raw to file name
+    file_name = file_name + "_raw"
+
     file_ext = "grib" if data_format == "grib" else "nc"
     file_name = file_name + "." + file_ext
 
@@ -240,21 +244,8 @@ if __name__ == "__main__":
     request = {
         "product_type": ["monthly_averaged_reanalysis"],
         "variable": ["2m_temperature", "total_precipitation"],
-        "year": ["2020", "2021", "2022", "2023", "2024", "2025"],
-        "month": [
-            "01",
-            "02",
-            "03",
-            "04",
-            "05",
-            "06",
-            "07",
-            "08",
-            "09",
-            "10",
-            "11",
-            "12",
-        ],
+        "year": ["2024"],
+        "month": ["01", "02", "03"],
         "time": ["00:00"],
         "data_format": data_format,
         "download_format": "unarchived",
@@ -277,7 +268,8 @@ if __name__ == "__main__":
     else:
         print("Data already exists at {}".format(output_file))
 
-    celsius_file_name = file_name.split(".")[0] + "_celsius.nc"
+    raw_file_name = file_name.split(".")[0]
+    celsius_file_name = raw_file_name[:-4] + "_celsius.nc"  # remove _raw
     output_celsius_file = data_folder / celsius_file_name
     with xr.open_dataset(output_file) as ds:
         # adjust longitude
