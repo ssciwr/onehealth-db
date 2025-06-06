@@ -34,7 +34,7 @@ dependencies = [
   "psycopg2-binary",
   "dask[complete]",
   "testcontainers",
-  "fastapi",
+  "fastapi[standard]",
   "uvicorn",
 ]
 

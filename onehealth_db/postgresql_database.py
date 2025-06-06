@@ -162,6 +162,18 @@ def install_postgis(engine: engine.Engine):
     """
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+        result = conn.execute(text("SELECT datname FROM pg_database;"))
+        databases = [row[0] for row in result]
+        print(databases)
+        # show the currently connected database
+        current_db = conn.execute(text("SELECT current_database();")).scalar()
+        print(f"Connected to database: {current_db}")
+        # check if PostGIS is installed
+        postgis_installed = conn.execute(
+            text("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'postgis');")
+        ).scalar()
+        if not postgis_installed:
+            raise RuntimeError("PostGIS extension could not be installed.")
         print("PostGIS extension installed.")
 
 

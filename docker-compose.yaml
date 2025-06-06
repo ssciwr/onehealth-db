@@ -1,10 +1,6 @@
 services:
   db:
-    build: 
-      context: .  # Build context is the current directory
-      dockerfile: Dockerfile  # Dockerfile to build the image
-
-    container_name: onehealth-postgres-container
+    image: postgis/postgis:17-3.5
     restart: always  # Restart the database if it crashes
     environment:
       POSTGRES_USER: postgres
@@ -12,9 +8,8 @@ services:
       POSTGRES_DB: onehealth_db  # Default database to create
     ports:
       - "5432:5432"  # Map PostgreSQL port to the host "host_port:container_port"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data  # Persist database data
-      # - ./_scripts/sql/initial_db_sandbox_setup.sql:/docker-entrypoint-initdb.d/init.sql  # Run initial SQL script
+    # volumes:
+    #   - postgres_data:/var/lib/postgresql/data  # Persist database data
 
 volumes:
   postgres_data:  # Named volume for database persistence
