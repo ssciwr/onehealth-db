@@ -9,12 +9,12 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      POSTGRES_DB: onehealth_db  # Default database to create
     ports:
       - "5432:5432"  # Map PostgreSQL port to the host "host_port:container_port"
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Persist database data
-      - ./_scripts/sql/initial_db_sandbox_setup.sql:/docker-entrypoint-initdb.d/init.sql  # Run initial SQL script
+      # - ./_scripts/sql/initial_db_sandbox_setup.sql:/docker-entrypoint-initdb.d/init.sql  # Run initial SQL script
 
 volumes:
   postgres_data:  # Named volume for database persistence

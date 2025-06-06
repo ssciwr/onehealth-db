@@ -10,3 +10,4 @@ mkdocs-literate-nav==0.6.2
 mkdocs-section-index==0.3.10
 Pygments==2.19.1
 mkdocs-minify-plugin==0.8.0
+fastapi[standard]
