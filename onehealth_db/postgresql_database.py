@@ -10,6 +10,7 @@ from sqlalchemy import (
     UniqueConstraint,
     ForeignKeyConstraint,
     engine,
+    func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
@@ -23,7 +24,7 @@ import xarray as xr
 import time
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Type
+from typing import Type, Tuple
 
 
 STR_CRS = "4326"
@@ -83,7 +84,9 @@ class GridPoint(Base):
         self.longitude = longitude
         # add value of point automatically,
         # only works when using the constructor, i.e. session.add()
-        self.point = STR_POINT.format(STR_CRS, self.longitude, self.latitude)
+        self.point = func.ST_GeomFromText(
+            STR_POINT.format(STR_CRS, self.longitude, self.latitude)
+        )
 
 
 class TimePoint(Base):
@@ -162,18 +165,6 @@ def install_postgis(engine: engine.Engine):
     """
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
-        result = conn.execute(text("SELECT datname FROM pg_database;"))
-        databases = [row[0] for row in result]
-        print(databases)
-        # show the currently connected database
-        current_db = conn.execute(text("SELECT current_database();")).scalar()
-        print(f"Connected to database: {current_db}")
-        # check if PostGIS is installed
-        postgis_installed = conn.execute(
-            text("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'postgis');")
-        ).scalar()
-        if not postgis_installed:
-            raise RuntimeError("PostGIS extension could not be installed.")
         print("PostGIS extension installed.")
 
 
@@ -291,7 +282,7 @@ def add_data_list_bulk(session: Session, data_dict_list: list, class_type: Type[
     Args:
         session (Session): SQLAlchemy session object.
         data_dict_list (list): List of dictionaries containing data to insert.
-        class_type (Type[Base]): SQLAlchemy model class type to insert data into.
+        class_type (Type[Base]): SQLAlchemy mapped class to insert data into.
     """
     try:
         session.bulk_insert_mappings(class_type, data_dict_list)
@@ -350,7 +341,9 @@ def extract_time_point(
         raise ValueError("Invalid time point format.")
 
 
-def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndarray:
+def get_unique_time_points(
+    time_point_data: list[Tuple[np.ndarray, bool]],
+) -> np.ndarray:
     """Get the unique of time points.
 
     Args:
@@ -386,10 +379,12 @@ def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndar
 
     concatenated = np.concatenate(time_points)
     unique_time_points = np.unique(concatenated)
-    return sorted(unique_time_points)
+    return np.sort(unique_time_points)
 
 
-def insert_time_points(session: Session, time_point_data: list[(np.ndarray, bool)]):
+def insert_time_points(
+    session: Session, time_point_data: list[Tuple[np.ndarray, bool]]
+):
     """Insert time points into the database.
 
     Args:
@@ -426,15 +421,7 @@ def insert_var_types(session: Session, var_types: list[dict]):
         session (Session): SQLAlchemy session object.
         var_types (list[dict]): List of dictionaries containing variable type data.
     """
-    var_types = [
-        VarType(
-            name=var_type["name"],
-            unit=var_type["unit"],
-            description=var_type["description"],
-        )
-        for var_type in var_types
-    ]
-    add_data_list(session, var_types)
+    add_data_list_bulk(session, var_types, VarType)
     print("Variable types inserted.")
 
 
