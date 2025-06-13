@@ -1,0 +1,21 @@
+data_to_fetch:
+  - var-name: 
+    - "t2m"
+    - "tp"
+    filename: "era5_data_2016_2017_2t_tp_monthly_celsius_mm_resampled_0.5degree_trim.nc"
+    host: "heibox"
+    url: "https://heibox.uni-heidelberg.de/f/264a47e3aa484946b8f0/?dl=1"
+    hash: "3e338f34099ae020462479ea0d6e07e2e25fdaa07e034f063be256a6539666f5"
+    description: "ERA5 data for 2m temperature and total precipitation, monthly averages, resampled to 0.5 degree resolution, trimmed to specific region."
+  - var-name:
+    - "total-population"
+    filename: "total_population_2016_2017.nc"
+    host: "heibox"
+    url: "https://heibox.uni-heidelberg.de/f/264a47e3aa484946b8f0/?dl=1"
+    hash: "3e338f34099ae020462479ea0d6e07e2e25fdaa07e034f063be256a6539666f5"
+    description: "Total population data for the years 2016 and 2017."
+
+datalake:
+  datadir_bronze: ".data_onehealth_db/bronze"
+  datadir_silver: ".data_onehealth_db/silver"
+  datadir_gold: ".data_onehealth_db/gold"
