@@ -737,6 +737,7 @@ def get_var_values_cartesian(
             and variable values for each point.
             None if no data is found.
     """
+    # TODO: shorten or simplify this function
     time_points = get_time_points(session, start_time_point, end_time_point)
 
     if not time_points:
