@@ -24,7 +24,7 @@ import xarray as xr
 import time
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Type, Tuple
+from typing import Type, Tuple, List
 
 
 STR_CRS = "4326"
@@ -628,3 +628,203 @@ def get_var_value(
         .first()
     )
     return result.value if result else None
+
+
+def get_time_points(
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+) -> List[TimePoint]:
+    """Get time points from the database that fall within a specified range.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+
+    Returns:
+        List[TimePoint]: List of TimePoint objects within the specified range.
+    """
+    if end_time_point is None:
+        end_time_point = start_time_point
+
+    return (
+        session.query(TimePoint)
+        .filter(
+            TimePoint.year >= start_time_point[0],
+            TimePoint.month >= start_time_point[1],
+            TimePoint.year <= end_time_point[0],
+            TimePoint.month <= end_time_point[1],
+        )
+        .all()
+    )
+
+
+def get_grid_points(
+    session: Session, area: None | Tuple[float, float, float, float] = None
+) -> List[GridPoint]:
+    """Get grid points from the database that fall within a specified area.
+    Args:
+        session (Session): SQLAlchemy session object.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are returned.
+    Returns:
+        List[GridPoint]: List of GridPoint objects within the specified area.
+    """
+    if area is None:
+        return session.query(GridPoint).all()
+
+    north, west, south, east = area
+    return (
+        session.query(GridPoint)
+        .filter(
+            GridPoint.latitude <= north,
+            GridPoint.latitude >= south,
+            GridPoint.longitude >= west,
+            GridPoint.longitude <= east,
+        )
+        .all()
+    )
+
+
+def get_var_types(
+    session: Session,
+    var_names: None | List[str] = None,
+) -> List[VarType]:
+    """Get variable types from the database with names specified in a list.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are returned.
+
+    Returns:
+        List[VarType]: List of VarType objects with the specified names.
+    """
+    if var_names is None:
+        return session.query(VarType).all()
+
+    return session.query(VarType).filter(VarType.name.in_(var_names)).all()
+
+
+def get_var_values_cartesian(
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+    area: None | Tuple[float, float, float, float] = None,
+    var_names: None | List[str] = None,
+    netcdf_file: str | None = None,
+) -> xr.Dataset | None:
+    """Get variable values for a cartesian map.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are used.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are used.
+        netcdf_file (str | None): Path to the NetCDF file to save the dataset.
+            If None, the dataset is not saved to a file.
+
+    Returns:
+        xr.Dataset | None: xarray dataset with coords as (time, latitude, longitude)
+            and variable values for each point.
+            None if no data is found.
+    """
+    time_points = get_time_points(session, start_time_point, end_time_point)
+
+    if not time_points:
+        print("No time points found in the specified range.")
+        return None
+
+    # create a list of time points and their ids
+    time_values = [
+        np.datetime64(pd.Timestamp(year=tp.year, month=tp.month, day=1), "ns")
+        for tp in time_points
+    ]
+    time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
+
+    # get the grid points and their ids
+    grid_points = get_grid_points(session, area)
+
+    if not grid_points:
+        print("No grid points found in the specified area.")
+        return None
+    # Sort and deduplicate latitudes and longitudes
+    latitudes = sorted(set(gp.latitude for gp in grid_points))
+    longitudes = sorted(set(gp.longitude for gp in grid_points))
+
+    # Create fast index maps for latitude and longitude
+    lat_to_index = {lat: i for i, lat in enumerate(latitudes)}
+    lon_to_index = {lon: i for i, lon in enumerate(longitudes)}
+
+    # Map grid_id to (lat_index, lon_index)
+    grid_ids = {
+        gp.id: (lat_to_index[gp.latitude], lon_to_index[gp.longitude])
+        for gp in grid_points
+    }
+
+    # get variable types and their ids
+    var_types = get_var_types(session, var_names)
+    if not var_types:
+        print("No variable types found in the specified names.")
+        return None
+
+    # create an empty dataset
+    ds = xr.Dataset(
+        coords={
+            "time": ("time", time_values),
+            "latitude": ("latitude", latitudes),
+            "longitude": ("longitude", longitudes),
+        }
+    )
+
+    # get variable values for each grid point and time point
+    for vt in var_types:
+        var_name = vt.name
+        values = (
+            session.query(VarValue)
+            .filter(
+                VarValue.grid_id.in_(grid_ids.keys()),
+                VarValue.time_id.in_(time_ids.keys()),
+                VarValue.var_id == vt.id,
+            )
+            .all()
+        )
+
+        # dummy values array
+        values_array = np.full(
+            (len(time_values), len(latitudes), len(longitudes)), np.nan
+        )
+
+        # fill the values array with the variable values
+        for vv in values:
+            grid_index = grid_ids[vv.grid_id]
+            lat_index, lon_index = grid_index
+            time_index = time_ids[vv.time_id]
+            values_array[time_index, lat_index, lon_index] = vv.value
+
+        # add data to the dataset
+        ds[var_name] = (("time", "latitude", "longitude"), values_array)
+
+    # add variable attributes
+    for var_type in var_types:
+        ds[var_type.name].attrs["unit"] = var_type.unit
+        ds[var_type.name].attrs["description"] = var_type.description
+    # add global attributes
+    ds.attrs["source"] = "OneHealth Database"
+    ds.attrs["created_at"] = pd.Timestamp.now().isoformat()
+    ds.attrs["description"] = "Variable values for a cartesian map from the database."
+
+    if netcdf_file:
+        # save the dataset to a NetCDF file
+        ds.to_netcdf(netcdf_file)
+        print(f"Dataset saved to {netcdf_file}")
+
+    return ds

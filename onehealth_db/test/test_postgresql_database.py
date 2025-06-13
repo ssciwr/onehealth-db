@@ -605,3 +605,93 @@ def test_get_var_value(get_session):
     get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
     get_session.commit()
+
+
+def test_get_time_points(get_session, get_dataset):
+    # insert time points
+    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
+
+    # test the function
+    result = postdb.get_time_points(
+        get_session, start_time_point=(2023, 1), end_time_point=None
+    )
+    assert len(result) == 1
+    assert result[0].year == 2023
+    assert result[0].month == 1
+    assert result[0].day == 1
+
+    result = postdb.get_time_points(
+        get_session, start_time_point=(2023, 1), end_time_point=(2024, 1)
+    )
+    assert len(result) == 2
+    assert result[0].year == 2023
+    assert result[0].month == 1
+    assert result[1].year == 2024
+    assert result[1].month == 1
+
+    # test with no time points
+    result = postdb.get_time_points(get_session, start_time_point=(2025, 1))
+    assert len(result) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_grid_points(get_session, get_dataset):
+    # insert grid points
+    postdb.insert_grid_points(
+        get_session, get_dataset.latitude.values, get_dataset.longitude.values
+    )
+
+    # test the function
+    result = postdb.get_grid_points(get_session, area=None)
+    assert len(result) == 6  # 2 latitudes * 3 longitudes
+    assert result[0].latitude == 10.0
+    assert result[0].longitude == 10.0
+
+    result = postdb.get_grid_points(
+        get_session, area=[11.0, 10.0, 10.0, 12.0]
+    )  # [N, W, S, E]
+    assert len(result) == 6
+    assert result[0].latitude == 10.0
+    assert result[0].longitude == 10.0
+
+    # no grid points case
+    result = postdb.get_grid_points(get_session, area=[20.0, 20.0, 20.0, 20.0])
+    assert len(result) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_var_types(get_session):
+    # insert var types
+    var_type_data = [
+        {
+            "name": "t2m",
+            "unit": "K",
+            "description": "2m temperature",
+        }
+    ]
+    postdb.insert_var_types(get_session, var_type_data)
+
+    # test the function
+    result = postdb.get_var_types(get_session, var_names=None)
+    assert len(result) == 1
+    assert result[0].name == "t2m"
+    assert result[0].unit == "K"
+    assert result[0].description == "2m temperature"
+
+    result = postdb.get_var_types(get_session, var_names=["t2m"])
+    assert len(result) == 1
+    assert result[0].name == "t2m"
+
+    # test with no var types
+    result = postdb.get_var_types(get_session, var_names=["non_existing_var"])
+    assert len(result) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
+    get_session.commit()
