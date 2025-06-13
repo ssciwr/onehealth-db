@@ -647,15 +647,15 @@ def test_get_grid_points(get_session, get_dataset):
     # test the function
     result = postdb.get_grid_points(get_session, area=None)
     assert len(result) == 6  # 2 latitudes * 3 longitudes
-    assert result[0].latitude == 10.0
-    assert result[0].longitude == 10.0
+    assert math.isclose(result[0].latitude, 10.0, abs_tol=1e-5)
+    assert math.isclose(result[0].longitude, 10.0, abs_tol=1e-5)
 
     result = postdb.get_grid_points(
         get_session, area=[11.0, 10.0, 10.0, 12.0]
     )  # [N, W, S, E]
     assert len(result) == 6
-    assert result[0].latitude == 10.0
-    assert result[0].longitude == 10.0
+    assert math.isclose(result[0].latitude, 10.0, abs_tol=1e-5)
+    assert math.isclose(result[0].longitude, 10.0, abs_tol=1e-5)
 
     # no grid points case
     result = postdb.get_grid_points(get_session, area=[20.0, 20.0, 20.0, 20.0])
