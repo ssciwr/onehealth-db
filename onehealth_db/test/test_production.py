@@ -17,7 +17,7 @@ def production_config():
 def test_read_production_config(production_config: Path):
     config_dict = prod.read_production_config()
     assert config_dict
-    assert len(config_dict) == 1
+    assert len(config_dict) == 2
     dict1 = config_dict["data_to_fetch"][0]
     assert dict1["var-name"] == ["t2m", "tp"]
     assert (
@@ -38,6 +38,8 @@ def test_read_production_config(production_config: Path):
         == "era5_data_2016_01_2t_tp_monthly_celsius_mm_resampled_0.5degree_trim.nc"
     )
     assert "local" in config_dict["data_to_fetch"][0]["host"]
+    config_dict = prod.read_production_config(str(production_config))
+    assert config_dict
 
 
 def test_get_production_data(tmp_path: Path):
@@ -49,3 +51,19 @@ def test_get_production_data(tmp_path: Path):
     completion_code = prod.get_production_data(url, filename, hash, outputdir)
     assert completion_code == 0
     assert (outputdir / filename).exists()
+
+
+def test_create_directories(tmp_path: Path):
+    prod.create_directories(str(tmp_path) + "test")
+    testdir = tmp_path / "test"
+    assert testdir.exists
+
+
+def test_main():
+    """Test the main function to ensure it runs without errors."""
+    # This test will not check the actual functionality but will ensure
+    # that the main function can be called without raising exceptions.
+    try:
+        prod.main()
+    except Exception as e:
+        pytest.fail(f"Main function raised an exception: {e}")

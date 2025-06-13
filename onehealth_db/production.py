@@ -53,3 +53,46 @@ def get_production_data(url: str, filename: str, hash: str, outputdir: Path) -> 
         raise RuntimeError(f"Failed to fetch data from {url}") from e
     print(f"Data fetched and saved to {file}")
     return 0
+
+
+def create_directories(dir: str) -> None:
+    """
+    Create directories if they do not exist.
+
+    Args:
+        dir (str): String of the directory to create/use.
+    """
+    output_dir = Path(dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def main() -> None:
+    """
+    Main function to set up the production database and data lake.
+    This function reads the production configuration, creates the necessary
+    directories, and fetches the data from the configured sources.
+    It is intended to be run as a script.
+    """
+    # set up production database and data lake using the provided config
+    config = read_production_config()
+    # create the data lake structure if it does not exist
+    for dir_name in config["datalake"].keys():
+        create_directories(config["datalake"][dir_name])
+
+    # fetch the data from the configured sources
+    for data in config["data_to_fetch"]:
+        if "local" in data["host"]:
+            # if the host is local, we can use the local path
+            data["url"] = str(Path(data["url"]).resolve())
+        elif "heibox" in data["host"]:
+            # if the host is heibox, we need to use the heibox URL
+            get_production_data(
+                url=data["url"],
+                filename=data["filename"],
+                hash=data["hash"],
+                outputdir=Path(config["datalake"]["datadir_silver"]),
+            )
+
+
+if __name__ == "__main__":
+    main()
