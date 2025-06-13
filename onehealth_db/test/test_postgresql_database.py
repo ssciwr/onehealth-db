@@ -805,6 +805,7 @@ def test_get_var_values_cartesian(
         var_names=None,
         netcdf_file=netcdf_file,
     )
+    assert len(ds_result.latitude) == 2
     assert netcdf_file.exists()
     results = xr.open_dataset(netcdf_file)
     assert len(results.latitude) == 2
