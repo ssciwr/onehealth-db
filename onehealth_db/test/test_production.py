@@ -44,11 +44,11 @@ def test_read_production_config(production_config: Traversable):
 
 def test_get_production_data(tmp_path: Path):
     filename = "test_download.md"
-    hash = "3e338f34099ae020462479ea0d6e07e2e25fdaa07e034f063be256a6539666f5"
+    filehash = "3e338f34099ae020462479ea0d6e07e2e25fdaa07e034f063be256a6539666f5"
     url = "https://heibox.uni-heidelberg.de/f/264a47e3aa484946b8f0/?dl=1"
     outputdir = tmp_path / "test_download"
     outputdir.mkdir(parents=True, exist_ok=True)
-    completion_code = prod.get_production_data(url, filename, hash, outputdir)
+    completion_code = prod.get_production_data(url, filename, filehash, outputdir)
     assert completion_code == 0
     assert (outputdir / filename).exists()
 

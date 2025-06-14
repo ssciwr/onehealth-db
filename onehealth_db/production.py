@@ -29,14 +29,14 @@ def read_production_config(dict_path: str | Traversable | Path | None = None) ->
     return production_dict
 
 
-def get_production_data(url: str, filename: str, hash: str, outputdir: Path) -> int:
+def get_production_data(url: str, filename: str, filehash: str, outputdir: Path) -> int:
     """
     Fetch data that is fed into the production database.
 
     Args:
     url (str): URL to fetch the data from.
         filename (str): Name of the file to be fetched.
-        hash (str): SHA256SUM hash of the file to verify integrity.
+        filehash (str): SHA256SUM hash of the file to verify integrity.
         outputdir (Path): Directory where the file will be saved.
     Returns:
         completion_code (int): Status code indicating the success or
@@ -45,7 +45,7 @@ def get_production_data(url: str, filename: str, hash: str, outputdir: Path) -> 
     try:
         file = pooch.retrieve(
             url=url,
-            known_hash=hash,
+            known_hash=filehash,
             path=outputdir / filename,
         )
     except Exception as e:
@@ -89,7 +89,7 @@ def main() -> None:
             get_production_data(
                 url=data["url"],
                 filename=data["filename"],
-                hash=data["hash"],
+                filehash=data["filehash"],
                 outputdir=Path(config["datalake"]["datadir_silver"]),
             )
 
