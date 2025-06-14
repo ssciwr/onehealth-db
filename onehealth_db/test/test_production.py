@@ -2,19 +2,19 @@ from onehealth_db import production as prod
 import pytest
 from pathlib import Path
 from importlib import resources
+from importlib.resources.abc import Traversable
 
 
 @pytest.fixture(scope="module")
-def production_config():
+def production_config() -> Traversable:
     """Fixture to provide the path to the test configuration file."""
-    with resources.path(
-        "onehealth_db", "test", "data", "test_production_config.yml"
-    ) as path:
-        dict_path = path
+    dict_path = (
+        resources.files("onehealth_db") / "test" / "data" / "test_production_config.yml"
+    )
     return dict_path
 
 
-def test_read_production_config(production_config: Path):
+def test_read_production_config(production_config: Traversable):
     config_dict = prod.read_production_config()
     assert config_dict
     assert len(config_dict) == 2

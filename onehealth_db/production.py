@@ -1,27 +1,27 @@
 from importlib import resources
+from importlib.resources.abc import Traversable
 from pathlib import Path
 import yaml
 import pooch
 
 
-def read_production_config(dict_path: str | Path | None = None) -> dict:
+def read_production_config(dict_path: str | Traversable | Path | None = None) -> dict:
     """
     Read configuration of the production database.
 
     Args:
-        dict_path (str|Path): Path to the configuration dictionary. Defaults to None,
-            which uses the default path.
+        dict_path (str|Traversable): Path to the configuration dictionary.
+            Defaults to None, which uses the default path.
     Returns:
         dict: Dict with configuration details for the
             production database.
     """
     if dict_path is None:
-        with resources.path("onehealth_db", "data", "production_config.yml") as path:
-            dict_path = path
+        dict_path = resources.files("onehealth_db") / "data" / "production_config.yml"
+    # check if the file exists
     if isinstance(dict_path, str):
         dict_path = Path(dict_path)
-    # check if the file exists
-    if not dict_path.exists():
+    if not dict_path.is_file():
         raise FileNotFoundError(f"Configuration file not found at {dict_path}")
     # read the configuration file
     with dict_path.open("r") as file:
