@@ -147,8 +147,9 @@ def test_initialize_database(get_docker_image):
         cleanup(engine3)
 
 
-def test_insert_nuts_def(get_engine_with_tables, get_session, tmp_path):
-    nuts_path = tmp_path / "nuts_def.shp"
+@pytest.fixture
+def get_nuts_def_data():
+    # create a sample NUTS shapefile data
     polygon1 = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     polygon2 = Polygon([(1, 0), (2, 0), (2, 1), (1, 1)])
     gdf = gpd.GeoDataFrame(
@@ -165,7 +166,15 @@ def test_insert_nuts_def(get_engine_with_tables, get_session, tmp_path):
         geometry=[polygon1, polygon2],
         crs="EPSG:4326",
     )
-    gdf.to_file(nuts_path, driver="ESRI Shapefile")
+    return gdf
+
+
+def test_insert_nuts_def(
+    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data
+):
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
 
     postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
 
@@ -813,7 +822,7 @@ def test_get_var_values_cartesian(
     assert len(results.time) == 1
     assert results.t2m.shape == (1, 2, 3)
 
-    # non cases
+    # none cases
     # no time points
     ds_result = postdb.get_var_values_cartesian(
         get_session,
@@ -850,4 +859,209 @@ def test_get_var_values_cartesian(
     get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_nuts_regions(
+    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data
+):
+    # create a sample NUTS shapefile
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
+
+    # insert NUTS definitions
+    postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
+
+    # test the function
+    # normal case
+    result = postdb.get_nuts_regions(get_engine_with_tables, area=None)
+    assert len(result) == 2
+    assert result.loc[0, "nuts_id"] == "NUTS1"  # result is a geodataframe
+    assert result.loc[0, "name_latn"] == "Test NUTS"
+    assert result.loc[1, "nuts_id"] == "NUTS2"
+    assert result.loc[1, "name_latn"] == "Test NUTS2"
+
+    # with area
+    result = postdb.get_nuts_regions(
+        get_engine_with_tables, area=[1.0, 0.0, 0.0, 2.0]  # [N, W, S, E]
+    )
+    assert len(result) == 2
+    assert result.loc[0, "nuts_id"] == "NUTS1"
+    assert result.loc[0, "name_latn"] == "Test NUTS"
+    assert result.loc[1, "nuts_id"] == "NUTS2"
+    assert result.loc[1, "name_latn"] == "Test NUTS2"
+
+    # no nuts data
+    result = postdb.get_nuts_regions(
+        get_engine_with_tables, area=[20.0, 20.0, 20.0, 20.0]  # [N, W, S, E]
+    )
+    assert result.empty
+
+    # clean up
+    get_session.query(postdb.NutsDef).delete()
+    get_session.commit()
+
+
+def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
+    nuts_regions = gpd.GeoDataFrame(
+        {
+            "nuts_id": ["NUTS1", "NUTS2"],
+            "geometry": [
+                Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
+                Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+    latitudes = np.array([0.5, 1.0, 1.5])
+    longitudes = np.array([0.5, 1.0, 1.5])
+    postdb.insert_grid_points(get_session, latitudes, longitudes)
+
+    # test the function
+    # normal case
+    grid_ids = postdb.get_grid_ids_in_nuts(
+        get_engine_with_tables, nuts_regions, area=None
+    )
+    assert len(grid_ids) == 6
+    assert grid_ids[0] == 1
+    assert grid_ids[1] == 2
+
+    # with area
+    grid_ids = postdb.get_grid_ids_in_nuts(
+        get_engine_with_tables, nuts_regions, area=[1.0, 0.0, 0.0, 1.0]  # [N, W, S, E]
+    )
+    assert len(grid_ids) == 4
+    assert grid_ids[0] == 1
+
+    # none cases
+    grid_ids = postdb.get_grid_ids_in_nuts(
+        get_engine_with_tables, nuts_regions=gpd.GeoDataFrame(geometry=[]), area=None
+    )
+    assert len(grid_ids) == 0
+    grid_ids = postdb.get_grid_ids_in_nuts(
+        get_engine_with_tables,
+        nuts_regions=nuts_regions,
+        area=[20.0, 20.0, 20.0, 20.0],  # [N, W, S, E]
+    )
+    assert len(grid_ids) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_var_values_nuts(
+    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data, get_dataset
+):
+    # create a sample NUTS shapefile
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
+
+    # insert NUTS definitions
+    postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
+
+    # insert grid points
+    # edit grid point to match NUTS regions
+    get_dataset = get_dataset.assign_coords(
+        latitude=("latitude", [0.5, 1.0]),
+        longitude=("longitude", [0.5, 1.0, 1.5]),
+    )
+    postdb.insert_grid_points(
+        get_session, get_dataset.latitude.values, get_dataset.longitude.values
+    )
+
+    # insert time points
+    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
+
+    # insert var types
+    var_type_data = [
+        {
+            "name": "t2m",
+            "unit": "K",
+            "description": "2m temperature",
+        }
+    ]
+    postdb.insert_var_types(get_session, var_type_data)
+
+    # get the id maps
+    grid_id_map, time_id_map, var_id_map = retrieve_id_maps(
+        get_session, get_dataset, var_type_data
+    )
+
+    # insert var values
+    postdb.insert_var_values(
+        get_engine_with_tables,
+        get_dataset,
+        "t2m",
+        grid_id_map,
+        time_id_map,
+        var_id_map,
+        to_monthly=False,
+    )
+
+    # test the function
+    # normal case
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 2
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[0, "var_name"] == "t2m"
+    assert rersult_gpd.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
+    assert rersult_gpd.loc[1, "nuts_id"] == "NUTS2"
+    assert rersult_gpd.loc[1, "var_name"] == "t2m"
+    assert rersult_gpd.loc[1, "var_value"] == np.mean(
+        get_dataset.t2m[:, 1:, 0]
+    )  # dataset has coords lat lon time
+    assert (
+        len(rersult_gpd.columns) == get_nuts_def_data.shape[1] + 3
+    )  # var_name, var_value, time
+
+    # with end time point
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=(2024, 1),
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 4
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[0, "var_name"] == "t2m"
+    assert rersult_gpd.loc[0, "time"] == np.datetime64("2023-01-01", "ns")
+    assert rersult_gpd.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
+    assert rersult_gpd.loc[1, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[1, "time"] == np.datetime64("2024-01-01", "ns")
+    assert rersult_gpd.loc[1, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 1]
+    )  # dataset has coords lat lon time
+
+    # with area
+
+    # with var names
+
+    # with shapefile
+
+    # none cases
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
     get_session.commit()

@@ -12,6 +12,7 @@ from sqlalchemy import (
     engine,
     func,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
 from geoalchemy2 import Geometry, WKBElement
@@ -27,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Type, Tuple, List
 
 
-STR_CRS = "4326"
+CRS = 4326
 STR_POINT = "SRID={};POINT({} {})"
 BATCH_SIZE = 10000
 MAX_WORKERS = 4
@@ -56,7 +57,7 @@ class NutsDef(Base):
     urbn_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     coast_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     geometry: Mapped[WKBElement] = mapped_column(
-        Geometry(geometry_type="POINT", srid=4326)
+        Geometry(geometry_type="POINT", srid=CRS)
     )
 
 
@@ -71,7 +72,7 @@ class GridPoint(Base):
     longitude: Mapped[float] = mapped_column(Float())
 
     # Geometry column for PostGIS
-    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326), nullable=True)
+    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=CRS), nullable=True)
 
     __table_args__ = (
         Index("idx_point_gridpoint", "point", postgresql_using="gist"),
@@ -85,7 +86,7 @@ class GridPoint(Base):
         # add value of point automatically,
         # only works when using the constructor, i.e. session.add()
         self.point = func.ST_GeomFromText(
-            STR_POINT.format(STR_CRS, self.longitude, self.latitude)
+            STR_POINT.format(str(CRS), self.longitude, self.latitude)
         )
 
 
@@ -306,7 +307,7 @@ def insert_grid_points(session: Session, latitudes: np.ndarray, longitudes: np.n
         {
             "latitude": float(lat),
             "longitude": float(lon),
-            "point": STR_POINT.format(STR_CRS, float(lon), float(lat)),
+            "point": STR_POINT.format(str(CRS), float(lon), float(lat)),
         }
         for lat in latitudes
         for lon in longitudes
@@ -738,6 +739,7 @@ def get_var_values_cartesian(
             None if no data is found.
     """
     # TODO: shorten or simplify this function
+    # get the time points and their ids
     time_points = get_time_points(session, start_time_point, end_time_point)
 
     if not time_points:
@@ -829,3 +831,212 @@ def get_var_values_cartesian(
         print(f"Dataset saved to {netcdf_file}")
 
     return ds
+
+
+def get_nuts_regions(
+    engine: engine.Engine,
+    area: None | Tuple[float, float, float, float] = None,
+) -> gpd.GeoDataFrame:
+    """Get NUTS regions from the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all NUTS regions are returned.
+
+    Returns:
+        gpd.GeoDataFrame: GeoDataFrame with NUTS region attributes and geometries.
+    """
+    if area is None:
+        return gpd.read_postgis("SELECT * FROM nuts_def", engine, geom_col="geometry")
+
+    north, west, south, east = area
+    return gpd.read_postgis(
+        f"""
+        SELECT * FROM nuts_def
+        WHERE ST_Intersects(
+            ST_MakeEnvelope({west}, {south}, {east}, {north}, {CRS}),
+            geometry
+        )
+        """,
+        engine,
+        geom_col="geometry",
+    )
+
+
+def get_grid_ids_in_nuts(
+    engine: engine.Engine,
+    nuts_regions: gpd.GeoDataFrame,
+    area: None | Tuple[float, float, float, float] = None,
+) -> List[int]:
+    """Get grid point IDs that are within the NUTS regions.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        nuts_regions (gpd.GeoDataFrame): GeoDataFrame with NUTS region geometries.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are considered.
+
+    Returns:
+        List[int]: List of grid point IDs that intersect with the NUTS regions.
+    """
+    if nuts_regions.empty:
+        return []
+
+    if area is None:
+        sql = """
+        SELECT id, point as geometry
+        FROM grid_point
+        """
+    else:
+        north, west, south, east = area
+        sql = f"""
+        SELECT id, point as geometry
+        FROM grid_point
+        WHERE grid_point.latitude <= {north}
+          AND grid_point.latitude >= {south}
+          AND grid_point.longitude >= {west}
+          AND grid_point.longitude <= {east}
+        """
+
+    # turn the grid points into a GeoDataFrame
+    grid_points_gdf = gpd.read_postgis(
+        sql,
+        engine,
+        geom_col="geometry",
+        crs=f"EPSG:{str(CRS)}",
+    )
+
+    # filter grid points that intersect with NUTS regions
+    filtered_grid_points_gdf = gpd.sjoin(
+        grid_points_gdf, nuts_regions, how="inner", predicate="intersects"
+    )
+
+    return sorted(set(filtered_grid_points_gdf["id"].tolist()))
+
+
+def get_var_values_nuts(
+    engine: engine.Engine,
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+    area: None | Tuple[float, float, float, float] = None,
+    var_names: None | List[str] = None,
+    shapefile: str | None = None,
+) -> gpd.GeoDataFrame | None:
+    """Get variable values for NUTS regions.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are used.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are used.
+        netcdf_file (str | None): Path to the NetCDF file to save the dataset.
+            If None, the dataset is not saved to a file.
+
+    Returns:
+        gpd.GeoDataFrame | None: GeoDataFrame with NUTS region attributes
+            and variable values for each NUTS region.
+            None if no data is found.
+    """
+    # TODO: shorten or simplify this function
+    # get the time points and their ids
+    time_points = get_time_points(session, start_time_point, end_time_point)
+
+    if not time_points:
+        print("No time points found in the specified range.")
+        return None
+    time_ids = [tp.id for tp in time_points]
+
+    # get the nuts regions
+    nuts_regions = get_nuts_regions(engine, area)
+    if nuts_regions.empty:
+        print("No NUTS regions found in the specified area.")
+        return None
+
+    # find grid point IDs inside the NUTS regions
+    grid_ids_in_nuts = get_grid_ids_in_nuts(engine, nuts_regions, area)
+
+    # get variable types and their ids
+    var_types = get_var_types(session, var_names)
+    if not var_types:
+        print("No variable types found in the specified names.")
+        return None
+    var_ids = [vt.id for vt in var_types]
+    var_names = [vt.name for vt in var_types]
+
+    # get variable values for each grid point and time point
+    query = (
+        session.query(
+            VarValue.value.label("var_value"),
+            GridPoint.point.label("geometry"),
+            TimePoint.year,
+            TimePoint.month,
+            TimePoint.day,
+            VarType.name.label("var_name"),
+        )
+        .join(GridPoint, VarValue.grid_id == GridPoint.id)
+        .join(TimePoint, VarValue.time_id == TimePoint.id)
+        .join(VarType, VarValue.var_id == VarType.id)
+        .filter(
+            GridPoint.id.in_(grid_ids_in_nuts),
+            TimePoint.id.in_(time_ids),
+            VarType.id.in_(var_ids),
+        )
+    )
+    compiled_query = query.statement.compile(
+        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+    )
+    var_values = gpd.read_postgis(
+        compiled_query,
+        engine,
+        params={
+            "grid_ids_in_nuts": list(grid_ids_in_nuts),
+            "time_ids": list(time_ids),
+            "var_ids": list(var_ids),
+        },
+        geom_col="geometry",
+    )
+    if var_values.empty:
+        print("No variable values found for the specified criteria.")
+        return None
+
+    # convert year, month, day to np.datetime64
+    var_values["time"] = pd.to_datetime(
+        var_values[["year", "month", "day"]].assign(day=1)
+    )
+    var_values = var_values.drop(columns=["year", "month", "day"])
+
+    # get variable values for each NUTS region
+    aggregated_by_nuts = (
+        gpd.sjoin(
+            var_values,
+            nuts_regions,
+            how="inner",
+            predicate="intersects",
+        )
+        .groupby(["nuts_id", "var_name", "time"])
+        .agg(
+            {
+                "var_value": "mean",  # average value for the variable
+            }
+        )
+        .reset_index()
+    )
+    # merge the aggregated values with the NUTS regions
+    nuts_var_values = nuts_regions.merge(aggregated_by_nuts, on="nuts_id")
+
+    # save to shapefile if specified
+    if shapefile:
+        nuts_var_values.to_file(shapefile, driver="ESRI Shapefile")
+        print(f"NUTS variable values saved to {shapefile}")
+
+    return nuts_var_values
