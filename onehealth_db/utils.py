@@ -147,7 +147,7 @@ def get_settings(
             settings = load_json(default_setting_path)
     except Exception:
         warnings.warn(
-            "Error in loading the settings file. " "Using default settings instead.",
+            "Error in loading the settings file. Using default settings instead.",
             UserWarning,
         )
         settings = load_json(default_setting_path)

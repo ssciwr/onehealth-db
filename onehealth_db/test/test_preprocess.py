@@ -6,7 +6,8 @@ from onehealth_db import preprocess
 
 @pytest.fixture()
 def get_data():
-    data = np.random.rand(2, 3) * 1000 + 273.15
+    rng = np.random.default_rng(seed=42)
+    data = rng.random((2, 3)) * 1000 + 273.15
     data_array = xr.DataArray(
         data,
         dims=["latitude", "longitude"],

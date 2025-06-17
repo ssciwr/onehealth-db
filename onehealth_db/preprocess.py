@@ -92,7 +92,7 @@ def convert_to_celsius_with_attributes(
         }
     )
 
-    for var in list(dataset.data_vars.keys()):
+    for var in dataset.data_vars.keys():
         if limited_area:
             # get old attribute values
             old_lon_first_grid = dataset[var].attrs.get(
