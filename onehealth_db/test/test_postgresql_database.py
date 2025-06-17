@@ -920,29 +920,14 @@ def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
 
     # test the function
     # normal case
-    grid_ids = postdb.get_grid_ids_in_nuts(
-        get_engine_with_tables, nuts_regions, area=None
-    )
+    grid_ids = postdb.get_grid_ids_in_nuts(get_engine_with_tables, nuts_regions)
     assert len(grid_ids) == 6
     assert grid_ids[0] == 1
     assert grid_ids[1] == 2
 
-    # with area
-    grid_ids = postdb.get_grid_ids_in_nuts(
-        get_engine_with_tables, nuts_regions, area=[1.0, 0.0, 0.0, 1.0]  # [N, W, S, E]
-    )
-    assert len(grid_ids) == 4
-    assert grid_ids[0] == 1
-
     # none cases
     grid_ids = postdb.get_grid_ids_in_nuts(
-        get_engine_with_tables, nuts_regions=gpd.GeoDataFrame(geometry=[]), area=None
-    )
-    assert len(grid_ids) == 0
-    grid_ids = postdb.get_grid_ids_in_nuts(
-        get_engine_with_tables,
-        nuts_regions=nuts_regions,
-        area=[20.0, 20.0, 20.0, 20.0],  # [N, W, S, E]
+        get_engine_with_tables, nuts_regions=gpd.GeoDataFrame(geometry=[])
     )
     assert len(grid_ids) == 0
 
@@ -1051,12 +1036,101 @@ def test_get_var_values_nuts(
     )  # dataset has coords lat lon time
 
     # with area
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=[0.5, 0.0, 0.0, 0.5],  # [N, W, S, E]
+        var_names=None,
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 1
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[0, "var_name"] == "t2m"
+    assert rersult_gpd.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
 
     # with var names
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=["t2m"],
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 2
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
 
     # with shapefile
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=tmp_path / "nuts_var_values.shp",
+    )
+    assert len(rersult_gpd) == 2
+    check_results = gpd.read_file(tmp_path / "nuts_var_values.shp")
+    assert len(check_results) == 2
+    assert check_results.loc[0, "nuts_id"] == "NUTS1"
+    assert check_results.loc[0, "var_name"] == "t2m"
+    assert check_results.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
 
     # none cases
+    # no time points
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2025, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert rersult_gpd is None
+    # no nuts regions
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=[20.0, 20.0, 20.0, 20.0],  # [N, W, S, E]
+        var_names=None,
+        shapefile=None,
+    )
+    assert rersult_gpd is None
+    # no var types
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=["non_existing_var"],
+        shapefile=None,
+    )
+    assert rersult_gpd is None
+    # no var values
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.commit()
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert rersult_gpd is None
 
     # clean up
     get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))

@@ -868,16 +868,12 @@ def get_nuts_regions(
 def get_grid_ids_in_nuts(
     engine: engine.Engine,
     nuts_regions: gpd.GeoDataFrame,
-    area: None | Tuple[float, float, float, float] = None,
 ) -> List[int]:
     """Get grid point IDs that are within the NUTS regions.
 
     Args:
         engine (engine.Engine): SQLAlchemy engine object.
         nuts_regions (gpd.GeoDataFrame): GeoDataFrame with NUTS region geometries.
-        area (None | Tuple[float, float, float, float]):
-            Area as (North, West, South, East).
-            If None, all grid points are considered.
 
     Returns:
         List[int]: List of grid point IDs that intersect with the NUTS regions.
@@ -885,21 +881,10 @@ def get_grid_ids_in_nuts(
     if nuts_regions.empty:
         return []
 
-    if area is None:
-        sql = """
-        SELECT id, point as geometry
-        FROM grid_point
-        """
-    else:
-        north, west, south, east = area
-        sql = f"""
-        SELECT id, point as geometry
-        FROM grid_point
-        WHERE grid_point.latitude <= {north}
-          AND grid_point.latitude >= {south}
-          AND grid_point.longitude >= {west}
-          AND grid_point.longitude <= {east}
-        """
+    sql = """
+    SELECT id, point as geometry
+    FROM grid_point
+    """
 
     # turn the grid points into a GeoDataFrame
     grid_points_gdf = gpd.read_postgis(
@@ -963,7 +948,7 @@ def get_var_values_nuts(
         return None
 
     # find grid point IDs inside the NUTS regions
-    grid_ids_in_nuts = get_grid_ids_in_nuts(engine, nuts_regions, area)
+    grid_ids_in_nuts = get_grid_ids_in_nuts(engine, nuts_regions)
 
     # get variable types and their ids
     var_types = get_var_types(session, var_names)
@@ -971,7 +956,6 @@ def get_var_values_nuts(
         print("No variable types found in the specified names.")
         return None
     var_ids = [vt.id for vt in var_types]
-    var_names = [vt.name for vt in var_types]
 
     # get variable values for each grid point and time point
     query = (
