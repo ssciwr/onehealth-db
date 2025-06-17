@@ -233,3 +233,43 @@ def test_convert_to_celsius_with_attributes_inplace(get_dataset):
     assert get_dataset["t2m"].attrs.get(
         "GRIB_longitudeOfLastGridPointInDegrees"
     ) == np.float64(45.0)
+
+
+def test_rename_coords(get_dataset):
+    renamed_dataset = preprocess.rename_coords(get_dataset, {"longitude": "lon"})
+
+    # check if the coordinates are renamed
+    assert "lon" in renamed_dataset.coords
+    assert "longitude" not in renamed_dataset.coords
+
+    # check if other data is preserved
+    assert np.allclose(renamed_dataset["t2m"].values, get_dataset["t2m"].values)
+    assert renamed_dataset["t2m"].dims[0] == get_dataset["t2m"].dims[0]
+
+
+def test_rename_coords_invalid_mapping(get_dataset):
+    with pytest.raises(ValueError):
+        preprocess.rename_coords(get_dataset, coords_mapping="")
+
+    with pytest.raises(ValueError):
+        preprocess.rename_coords(get_dataset, coords_mapping={})
+
+    with pytest.raises(ValueError):
+        preprocess.rename_coords(get_dataset, coords_mapping=1)
+
+    with pytest.raises(ValueError):
+        preprocess.rename_coords(get_dataset, coords_mapping={"lon": 2.2})
+
+
+def test_rename_coords_notexist_coords(get_dataset):
+    with pytest.warns(UserWarning):
+        renamed_dataset = preprocess.rename_coords(
+            get_dataset, {"notexist": "lon", "latitude": "lat"}
+        )
+
+    # check if the coordinates are not renamed
+    assert "notexist" not in renamed_dataset.coords
+    assert "lon" not in renamed_dataset.coords
+    assert "longitude" in renamed_dataset.coords
+    assert "latitude" not in renamed_dataset.coords
+    assert "lat" in renamed_dataset.coords

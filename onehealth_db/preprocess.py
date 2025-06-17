@@ -1,6 +1,7 @@
 from typing import TypeVar, Union
 import xarray as xr
 import numpy as np
+import warnings
 
 
 T = TypeVar("T", bound=Union[float, xr.DataArray])
@@ -117,6 +118,41 @@ def convert_to_celsius_with_attributes(
                     "GRIB_longitudeOfFirstGridPointInDegrees": np.float64(-179.9),
                     "GRIB_longitudeOfLastGridPointInDegrees": np.float64(180.0),
                 }
+            )
+
+    return dataset
+
+
+def rename_coords(dataset: xr.Dataset, coords_mapping: dict) -> xr.Dataset:
+    """Rename coordinates in the dataset based on a mapping.
+
+    Args:
+        dataset (xr.Dataset): Dataset with coordinates to rename.
+        coords_mapping (dict): Mapping of old coordinate names to new names.
+
+    Returns:
+        xr.Dataset: A new dataset with renamed coordinates.
+    """
+    coords_mapping_check = (
+        isinstance(coords_mapping, dict)
+        and bool(coords_mapping)
+        and all(
+            isinstance(old_name, str) and isinstance(new_name, str)
+            for old_name, new_name in coords_mapping.items()
+        )
+    )
+    if not coords_mapping_check:
+        raise ValueError(
+            "coords_mapping must be a non-empty dictionary of {old_name: new_name} pairs."
+        )
+
+    for old_name, new_name in coords_mapping.items():
+        if old_name in dataset.coords:
+            dataset = dataset.rename({old_name: new_name})
+        else:
+            warnings.warn(
+                f"Coordinate '{old_name}' not found in the dataset and will be skipped.",
+                UserWarning,
             )
 
     return dataset
