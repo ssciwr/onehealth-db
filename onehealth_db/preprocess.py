@@ -4,7 +4,7 @@ import numpy as np
 import warnings
 
 
-T = TypeVar("T", bound=Union[float, xr.DataArray])
+T = TypeVar("T", bound=Union[np.float64, xr.DataArray])
 
 
 def convert_360_to_180(longitude: T) -> T:
@@ -20,79 +20,32 @@ def convert_360_to_180(longitude: T) -> T:
 
 
 def adjust_longitude_360_to_180(
-    dataset: xr.Dataset, inplace: bool = True
+    dataset: xr.Dataset,
+    limited_area: bool = False,
+    var_name: str = "longitude",
 ) -> xr.Dataset:
     """Adjust longitude from 0-360 to -180-180.
 
     Args:
         dataset (xr.Dataset): Dataset with longitude in 0-360 range.
-        inplace (bool): If True, modify the original dataset.
-            If False, return a new dataset. Default is True.
+        limited_area (bool): Flag indicating if the dataset is a limited area.
+            Default is False.
+        var_name (str): Name of the longitude variable in the dataset.
+            Default is "longitude".
 
     Returns:
         xr.Dataset: Dataset with longitude adjusted to -180-180 range.
     """
-    if not inplace:
-        dataset = dataset.copy(deep=True)
-
     # record attributes
-    lon_attrs = dataset["longitude"].attrs.copy()
+    lon_attrs = dataset[var_name].attrs.copy()
 
     # adjust longitude
     dataset = dataset.assign_coords(
-        longitude=convert_360_to_180(dataset["longitude"])
-    ).sortby("longitude")
-    dataset["longitude"].attrs = lon_attrs
+        longitude=convert_360_to_180(dataset[var_name])
+    ).sortby(var_name)
+    dataset[var_name].attrs = lon_attrs
 
-    return dataset
-
-
-def convert_to_celsius(temperature_kelvin: xr.DataArray) -> xr.DataArray:
-    """Convert temperature from Kelvin to Celsius.
-
-    Args:
-        temperature_kelvin (xr.DataArray): Temperature in Kelvin,
-            accessed through t2m variable in the dataset.
-
-    Returns:
-        xr.DataArray: Temperature in Celsius.
-    """
-    return temperature_kelvin - 273.15
-
-
-def convert_to_celsius_with_attributes(
-    dataset: xr.Dataset, limited_area: bool = True, inplace: bool = True
-) -> xr.Dataset:
-    """Convert temperature from Kelvin to Celsius and keep attributes.
-
-    Args:
-        dataset (xr.Dataset): Dataset containing temperature in Kelvin.
-        limited_area (bool): Flag indicating if the dataset is a limited area.
-            Default is True.
-        inplace (bool): If True, modify the original dataset.
-            If False, return a new dataset. Default is True.
-
-    Returns:
-        xr.Dataset: Dataset with temperature converted to Celsius.
-    """
-    if not inplace:
-        dataset = dataset.copy(deep=True)
-
-    # record attributes
-    t2m_attrs = dataset["t2m"].attrs.copy()
-
-    # Convert temperature variable
-    dataset["t2m"] = convert_to_celsius(dataset["t2m"])
-
-    # Update attributes
-    dataset["t2m"].attrs = t2m_attrs
-    dataset["t2m"].attrs.update(
-        {
-            "GRIB_units": "C",
-            "units": "C",
-        }
-    )
-
+    # update attributes of data variables
     for var in dataset.data_vars.keys():
         if limited_area:
             # get old attribute values
@@ -119,6 +72,57 @@ def convert_to_celsius_with_attributes(
                     "GRIB_longitudeOfLastGridPointInDegrees": np.float64(180.0),
                 }
             )
+
+    return dataset
+
+
+def convert_to_celsius(temperature_kelvin: T) -> T:
+    """Convert temperature from Kelvin to Celsius.
+
+    Args:
+        temperature_kelvin (T): Temperature in Kelvin,
+            accessed through t2m variable in the dataset.
+
+    Returns:
+        T: Temperature in Celsius.
+    """
+    return temperature_kelvin - 273.15
+
+
+def convert_to_celsius_with_attributes(
+    dataset: xr.Dataset,
+    inplace: bool = False,
+    var_name: str = "t2m",
+) -> xr.Dataset:
+    """Convert temperature from Kelvin to Celsius and keep attributes.
+
+    Args:
+        dataset (xr.Dataset): Dataset containing temperature in Kelvin.
+        inplace (bool): If True, modify the original dataset.
+            If False, return a new dataset. Default is False.
+        var_name (str): Name of the temperature variable in the dataset.
+            Default is "t2m".
+
+    Returns:
+        xr.Dataset: Dataset with temperature converted to Celsius.
+    """
+    if not inplace:
+        dataset = dataset.copy(deep=True)
+
+    # record attributes
+    var_attrs = dataset[var_name].attrs.copy()
+
+    # Convert temperature variable
+    dataset[var_name] = convert_to_celsius(dataset[var_name])
+
+    # Update attributes
+    dataset[var_name].attrs = var_attrs
+    dataset[var_name].attrs.update(
+        {
+            "GRIB_units": "C",
+            "units": "C",
+        }
+    )
 
     return dataset
 
@@ -154,5 +158,53 @@ def rename_coords(dataset: xr.Dataset, coords_mapping: dict) -> xr.Dataset:
                 f"Coordinate '{old_name}' not found in the dataset and will be skipped.",
                 UserWarning,
             )
+
+    return dataset
+
+
+def convert_m_to_mm(precipitation: T) -> T:
+    """Convert precipitation from meters to millimeters.
+
+    Args:
+        precipitation (T): Precipitation in meters.
+
+    Returns:
+        T: Precipitation in millimeters.
+    """
+    return precipitation * 1000.0
+
+
+def convert_m_to_mm_with_attributes(
+    dataset: xr.Dataset, inplace: bool = False, var_name: str = "tp"
+) -> xr.Dataset:
+    """Convert precipitation from meters to millimeters and keep attributes.
+
+    Args:
+        dataset (xr.Dataset): Dataset containing precipitation in meters.
+        inplace (bool): If True, modify the original dataset.
+            If False, return a new dataset. Default is False.
+        var_name (str): Name of the precipitation variable in the dataset.
+            Default is "tp".
+
+    Returns:
+        xr.Dataset: Dataset with precipitation converted to millimeters.
+    """
+    if not inplace:
+        dataset = dataset.copy(deep=True)
+
+    # record attributes
+    var_attrs = dataset[var_name].attrs.copy()
+
+    # Convert precipitation variable
+    dataset[var_name] = convert_m_to_mm(dataset[var_name])
+
+    # Update attributes
+    dataset[var_name].attrs = var_attrs
+    dataset[var_name].attrs.update(
+        {
+            "GRIB_units": "mm",
+            "units": "mm",
+        }
+    )
 
     return dataset
