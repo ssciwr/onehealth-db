@@ -308,3 +308,12 @@ def test_convert_m_to_mm_with_attributes_inplace(get_dataset):
         get_dataset["tp"].coords[dim].equals(expected_mm_array.coords[dim])
         for dim in get_dataset["tp"].dims
     )
+
+
+def test_downsample_resolution_invalid(get_dataset):
+    with pytest.raises(ValueError):
+        preprocess.downsample_resolution(get_dataset, new_resolution=0)
+    with pytest.raises(ValueError):
+        preprocess.downsample_resolution(get_dataset, new_resolution=-0.5)
+    with pytest.raises(ValueError):
+        preprocess.downsample_resolution(get_dataset, new_resolution=0.5)

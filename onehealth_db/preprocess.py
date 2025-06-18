@@ -208,3 +208,64 @@ def convert_m_to_mm_with_attributes(
     )
 
     return dataset
+
+
+def downsample_resolution(
+    dataset: xr.Dataset,
+    new_resolution: float = 0.5,
+    expected_longitude_max: np.float64 | None = np.float64(179.75),
+) -> xr.Dataset:
+    """Downsample the resolution of a dataset.
+
+    Args:
+        dataset (xr.Dataset): Dataset to change resolution.
+        new_resolution (float): New resolution in degrees. Default is 0.5.
+        expected_longitude_max (np.float64 | None): Expected maximum longitude
+            after resolution change. If None, no further adjustment is made.
+            Default is np.float64(179.75).
+
+    Returns:
+        xr.Dataset: Dataset with changed resolution.
+    """
+    if new_resolution <= 0:
+        raise ValueError("New resolution must be a positive number.")
+
+    old_longitude_min = dataset["longitude"].min().item()
+    old_longitude_max = dataset["longitude"].max().item()
+
+    old_resolution = np.round(
+        (dataset["longitude"][1] - dataset["longitude"][0]).item(), 2
+    )
+
+    if new_resolution < old_resolution:
+        raise ValueError(
+            f"Degree of new resolution {new_resolution} "
+            "should be greater than {old_resolution}."
+        )
+
+    weight = int(np.ceil(new_resolution / old_resolution))
+
+    # change resolution
+    dataset = dataset.coarsen(
+        latitude=int(weight), longitude=int(weight), boundary="trim"
+    ).mean()
+
+    # handle floating point precision issues
+    # TODO: find a more general solution
+    special_case = (
+        np.isclose(expected_longitude_max, np.float64(179.75))
+        and np.isclose(old_longitude_min, np.float64(-179.9))
+        and np.isclose(old_longitude_max, np.float64(180.0))
+    )
+    if special_case:
+        new_longitude_max = dataset["longitude"].max().item()
+        offset = expected_longitude_max - new_longitude_max
+
+        # adjust coord values
+        dataset = dataset.assign_coords(
+            {
+                "longitude": (dataset["longitude"] + offset).round(2),
+                "latitude": (dataset["latitude"] + offset).round(2),
+            }
+        )
+    return dataset
