@@ -47,15 +47,12 @@ def db_status():
 
 
 @app.get("/cartesian")
-def get_cartesian(session: SessionDep) -> Union[dict, None]:
-    year = 2016
-    month = 1
-    day = 1
-    requested_time = datetime.datetime(year, month, day)
+def get_cartesian(
+    session: SessionDep, requested_time_point: datetime.date
+) -> Union[dict, None]:
     # the frontend will request a variable over all lat, long values
-    # given a datetime object, so we need to convert this to a time that
-    # the database can understand
-    start_time = (requested_time.year, requested_time.month)
+    # the date input is 2016-01-01 (a date object)
+    start_time = (requested_time_point.year, requested_time_point.month)
     var_name = "t2m"
     t_start_retrieving = time.time()
     try:
