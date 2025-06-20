@@ -523,3 +523,41 @@ def test_upsample_resolution_custom(get_dataset):
     )
     tp_expected = get_dataset["tp"].interp(latitude=0.1, longitude=0.1, method="linear")
     assert np.allclose(tp_interp.values, tp_expected.values)
+
+
+def test_truncate_data_from_time(get_dataset):
+    # truncate data from time
+    truncated_dataset = preprocess.truncate_data_from_time(
+        get_dataset, start_date="2025-01-01"
+    )
+
+    # check if the time dimension is reduced
+    assert len(truncated_dataset["t2m"].time) == 1
+    assert len(truncated_dataset["tp"].time) == 1
+
+    # check if the data is truncated correctly
+    assert np.allclose(
+        truncated_dataset["t2m"].values, get_dataset["t2m"].isel(time=1).values
+    )
+    assert np.allclose(
+        truncated_dataset["tp"].values, get_dataset["tp"].isel(time=1).values
+    )
+
+    # start date as np.datetime64
+    truncated_dataset = preprocess.truncate_data_from_time(
+        get_dataset, start_date=np.datetime64("2025-01-01")
+    )
+
+    assert np.allclose(
+        truncated_dataset["t2m"].values, get_dataset["t2m"].isel(time=1).values
+    )
+    assert np.allclose(
+        truncated_dataset["tp"].values, get_dataset["tp"].isel(time=1).values
+    )
+
+    # random start date
+    truncated_dataset = preprocess.truncate_data_from_time(
+        get_dataset, start_date=np.datetime64("2024-07-17")
+    )
+    assert len(truncated_dataset["t2m"].time) == 1
+    assert truncated_dataset["t2m"].time.values[0] == np.datetime64("2025-01-01")

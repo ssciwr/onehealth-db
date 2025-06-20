@@ -386,3 +386,25 @@ def upsample_resolution(
     result_dataset.attrs = dataset.attrs.copy()
 
     return result_dataset
+
+
+def truncate_data_from_time(
+    dataset: xr.Dataset,
+    start_date: Union[str, np.datetime64],
+    var_name: str = "time",
+) -> xr.Dataset:
+    """Truncate data from a specific start date.
+
+    Args:
+        dataset (xr.Dataset): Dataset to truncate.
+        start_date (Union[str, np.datetime64]): Start date for truncation.
+            Format as "YYYY-MM-DD" or as a numpy datetime64 object.
+        var_name (str): Name of the time variable in the dataset. Default is "time".
+
+    Returns:
+        xr.Dataset: Dataset truncated from the specified start date.
+    """
+    end_date = dataset[var_name].max().item()
+    if isinstance(start_date, str):
+        start_date = np.datetime64(start_date, "ns")
+    return dataset.sel({var_name: slice(start_date, end_date)})
