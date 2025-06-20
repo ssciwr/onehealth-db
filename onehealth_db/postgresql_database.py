@@ -717,7 +717,7 @@ def get_var_values_cartesian(
     area: None | Tuple[float, float, float, float] = None,
     var_names: None | List[str] = None,
     netcdf_file: str | None = None,
-) -> xr.Dataset | None:
+) -> dict:
     """Get variable values for a cartesian map.
 
     Args:
@@ -734,9 +734,8 @@ def get_var_values_cartesian(
             If None, the dataset is not saved to a file.
 
     Returns:
-        xr.Dataset | None: xarray dataset with coords as (time, latitude, longitude)
-            and variable values for each point.
-            None if no data is found.
+        dict: a dict with (time, latitude, longitude, var_value) keys.
+            time or var_value is empty if no data is found.
     """
     # TODO: shorten or simplify this function
     # get the time points and their ids
@@ -744,7 +743,7 @@ def get_var_values_cartesian(
 
     if not time_points:
         print("No time points found in the specified range.")
-        return None
+        return {"time": [], "latitude": [], "longitude": [], "var_value": []}
 
     # create a list of time points and their ids
     time_values = [
@@ -758,7 +757,7 @@ def get_var_values_cartesian(
 
     if not grid_points:
         print("No grid points found in the specified area.")
-        return None
+        return {"time": [], "latitude": [], "longitude": [], "var_value": []}
     # Sort and deduplicate latitudes and longitudes
     latitudes = sorted(set(gp.latitude for gp in grid_points))
     longitudes = sorted(set(gp.longitude for gp in grid_points))
@@ -777,7 +776,7 @@ def get_var_values_cartesian(
     var_types = get_var_types(session, var_names)
     if not var_types:
         print("No variable types found in the specified names.")
-        return None
+        return {"time": [], "latitude": [], "longitude": [], "var_value": []}
 
     # create an empty dataset
     ds = xr.Dataset(
@@ -830,7 +829,20 @@ def get_var_values_cartesian(
         ds.to_netcdf(netcdf_file)
         print(f"Dataset saved to {netcdf_file}")
 
-    return ds
+    if not var_types:
+        # if no variable types, still generate a var_value array
+        # this should be refactored to avoid this case
+        values_array = np.full(
+            (len(time_values), len(latitudes), len(longitudes)), np.nan
+        )
+
+    mydict = {
+        "time": time_values,
+        "latitude": latitudes,
+        "longitude": longitudes,
+        "var_value": values_array,
+    }
+    return mydict
 
 
 def get_nuts_regions(

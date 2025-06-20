@@ -753,13 +753,15 @@ def test_get_var_values_cartesian(
         var_names=None,
         netcdf_file=None,
     )
-    assert len(ds_result.latitude) == 2
-    assert len(ds_result.longitude) == 3
-    assert len(ds_result.time) == 1
-    assert ds_result.t2m.shape == (1, 2, 3)
-    assert math.isclose(ds_result.t2m[0, 0, 0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5)
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 1
+    assert ds_result["var_value"].shape == (1, 2, 3)
     assert math.isclose(
-        ds_result.t2m[0, 1, 1], get_dataset.t2m[1, 1, 0], abs_tol=1e-5
+        ds_result["var_value"][0, 0, 0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5
+    )
+    assert math.isclose(
+        ds_result["var_value"][0, 1, 1], get_dataset.t2m[1, 1, 0], abs_tol=1e-5
     )  # the dataset has coords lat lon time
 
     # with end point
@@ -771,10 +773,10 @@ def test_get_var_values_cartesian(
         var_names=None,
         netcdf_file=None,
     )
-    assert len(ds_result.latitude) == 2
-    assert len(ds_result.longitude) == 3
-    assert len(ds_result.time) == 2
-    assert ds_result.t2m.shape == (2, 2, 3)
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 2
+    assert ds_result["var_value"].shape == (2, 2, 3)
 
     # with area
     ds_result = postdb.get_var_values_cartesian(
@@ -785,10 +787,10 @@ def test_get_var_values_cartesian(
         var_names=None,
         netcdf_file=None,
     )
-    assert len(ds_result.latitude) == 2
-    assert len(ds_result.longitude) == 2
-    assert len(ds_result.time) == 1
-    assert ds_result.t2m.shape == (1, 2, 2)
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 2
+    assert len(ds_result["time"]) == 1
+    assert ds_result["var_value"].shape == (1, 2, 2)
 
     # with var names
     ds_result = postdb.get_var_values_cartesian(
@@ -799,10 +801,10 @@ def test_get_var_values_cartesian(
         var_names=["t2m"],
         netcdf_file=None,
     )
-    assert len(ds_result.latitude) == 2
-    assert len(ds_result.longitude) == 3
-    assert len(ds_result.time) == 1
-    assert ds_result.t2m.shape == (1, 2, 3)
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 1
+    assert ds_result["var_value"].shape == (1, 2, 3)
 
     # with netcdf file
     netcdf_file = tmp_path / "test_var_values.nc"
@@ -814,7 +816,7 @@ def test_get_var_values_cartesian(
         var_names=None,
         netcdf_file=netcdf_file,
     )
-    assert len(ds_result.latitude) == 2
+    assert len(ds_result["latitude"]) == 2
     assert netcdf_file.exists()
     results = xr.open_dataset(netcdf_file)
     assert len(results.latitude) == 2
@@ -832,7 +834,7 @@ def test_get_var_values_cartesian(
         var_names=None,
         netcdf_file=None,
     )
-    assert ds_result is None
+    assert ds_result == {"latitude": [], "longitude": [], "time": [], "var_value": []}
     # no grid points
     ds_result = postdb.get_var_values_cartesian(
         get_session,
@@ -842,7 +844,7 @@ def test_get_var_values_cartesian(
         var_names=None,
         netcdf_file=None,
     )
-    assert ds_result is None
+    assert ds_result == {"latitude": [], "longitude": [], "time": [], "var_value": []}
     # no var types
     ds_result = postdb.get_var_values_cartesian(
         get_session,
@@ -852,7 +854,7 @@ def test_get_var_values_cartesian(
         var_names=["non_existing_var"],
         netcdf_file=None,
     )
-    assert ds_result is None
+    assert ds_result == {"latitude": [], "longitude": [], "time": [], "var_value": []}
 
     # clean up
     get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
