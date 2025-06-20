@@ -7,8 +7,8 @@ from onehealth_db import preprocess
 @pytest.fixture()
 def get_data():
     time_points = np.array(["2024-01-01", "2025-01-01"], dtype="datetime64")
-    latitude = [0, 1]
-    longitude = [0, 1, 2]
+    latitude = [0, 0.5]
+    longitude = [0, 0.5, 1]
     longitude_first = np.float64(0.0)
     longitude_last = np.float64(359.9)
 
@@ -317,3 +317,131 @@ def test_downsample_resolution_invalid(get_dataset):
         preprocess.downsample_resolution(get_dataset, new_resolution=-0.5)
     with pytest.raises(ValueError):
         preprocess.downsample_resolution(get_dataset, new_resolution=0.5)
+    with pytest.raises(ValueError):
+        preprocess.downsample_resolution(
+            get_dataset, new_resolution=1.0, agg_funcs="invalid"
+        )
+
+
+def test_downsample_resolution_default(get_dataset):
+    # downsample resolution
+    downsampled_dataset = preprocess.downsample_resolution(
+        get_dataset, new_resolution=1.0
+    )
+
+    # check if the dimensions are reduced
+    assert len(downsampled_dataset["t2m"].dims) == 3
+    assert len(downsampled_dataset["tp"].dims) == 3
+
+    # check if the coordinates are adjusted
+    assert np.allclose(
+        downsampled_dataset["t2m"].latitude.values, [0.25]
+    )  # example for latitude
+    assert np.allclose(
+        downsampled_dataset["t2m"].longitude.values, [0.25]
+    )  # example for longitude
+
+    # check agg. values
+    assert np.allclose(
+        downsampled_dataset["t2m"].values.flatten(),
+        np.mean(get_dataset["t2m"][:, :, :2], axis=(1, 2)),
+    )
+
+    # check attributes
+    assert downsampled_dataset.attrs == get_dataset.attrs
+    for var in downsampled_dataset.data_vars.keys():
+        assert downsampled_dataset[var].attrs == get_dataset[var].attrs
+
+
+def test_downsample_resolution_custom(get_dataset):
+    # downsample resolution with custom aggregation functions
+    agg_funcs = {
+        "t2m": "mean",
+        "tp": "sum",
+    }
+    downsampled_dataset = preprocess.downsample_resolution(
+        get_dataset, new_resolution=1.0, agg_funcs=agg_funcs
+    )
+
+    # check if the dimensions are reduced
+    assert len(downsampled_dataset["t2m"].dims) == 3
+    assert len(downsampled_dataset["tp"].dims) == 3
+
+    # check if the coordinates are adjusted
+    assert np.allclose(
+        downsampled_dataset["t2m"].latitude.values, [0.25]
+    )  # example for latitude
+    assert np.allclose(
+        downsampled_dataset["t2m"].longitude.values, [0.25]
+    )  # example for longitude
+
+    # check agg. values
+    assert np.allclose(
+        downsampled_dataset["t2m"].values.flatten(),
+        np.mean(get_dataset["t2m"][:, :, :2], axis=(1, 2)),
+    )
+    assert np.allclose(
+        downsampled_dataset["tp"].values.flatten(),
+        np.sum(get_dataset["tp"][:, :, :2], axis=(1, 2)),
+    )
+
+    # check attributes
+    assert downsampled_dataset.attrs == get_dataset.attrs
+    for var in downsampled_dataset.data_vars.keys():
+        assert downsampled_dataset[var].attrs == get_dataset[var].attrs
+
+    # custom agg map
+    downsampled_dataset = preprocess.downsample_resolution(
+        get_dataset,
+        new_resolution=1.0,
+        agg_funcs={"t2m": "mean"},
+        agg_map={"mean": np.mean},
+    )  # tp will also use mean
+    assert np.allclose(
+        downsampled_dataset["tp"].values.flatten(),
+        np.mean(get_dataset["tp"][:, :, :2], axis=(1, 2)),
+    )
+
+
+def test_align_lon_lat_with_popu_data_special_case(get_dataset):
+    tmp_lat = [89.8, -89.7]
+    tmp_lon = [-179.7, -179.2, 179.8]
+    get_dataset = get_dataset.assign_coords(
+        latitude=("latitude", tmp_lat),
+        longitude=("longitude", tmp_lon),
+    )
+    aligned_dataset = preprocess.align_lon_lat_with_popu_data(
+        get_dataset, expected_longitude_max=np.float64(179.75)
+    )
+    expected_lon = np.array([-179.75, -179.25, 179.75])
+    expected_lat = np.array([89.75, -89.75])
+    assert np.allclose(aligned_dataset["longitude"].values, expected_lon)
+    assert np.allclose(aligned_dataset["latitude"].values, expected_lat)
+
+
+def test_align_lon_lat_with_popu_data_other_cases(get_dataset):
+    aligned_dataset = preprocess.align_lon_lat_with_popu_data(
+        get_dataset, expected_longitude_max=np.float64(179.75)
+    )
+    assert np.allclose(
+        aligned_dataset["longitude"].values, get_dataset["longitude"].values
+    )
+    assert np.allclose(
+        aligned_dataset["latitude"].values, get_dataset["latitude"].values
+    )
+
+    tmp_lat = [89.8, -89.7]
+    tmp_lon = [-179.7, -179.2, 179.8]
+    get_dataset = get_dataset.assign_coords(
+        latitude=("latitude", tmp_lat),
+        longitude=("longitude", tmp_lon),
+    )
+    aligned_dataset = preprocess.align_lon_lat_with_popu_data(
+        get_dataset, expected_longitude_max=np.float64(179.0)
+    )
+    assert np.allclose(
+        aligned_dataset["longitude"].values, get_dataset["longitude"].values
+    )
+    assert np.allclose(
+        aligned_dataset["latitude"].values, get_dataset["latitude"].values
+    )

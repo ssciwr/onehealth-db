@@ -1,4 +1,4 @@
-from typing import TypeVar, Union
+from typing import TypeVar, Union, Callable, Dict, Any
 import xarray as xr
 import numpy as np
 import warnings
@@ -213,16 +213,19 @@ def convert_m_to_mm_with_attributes(
 def downsample_resolution(
     dataset: xr.Dataset,
     new_resolution: float = 0.5,
-    expected_longitude_max: np.float64 | None = np.float64(179.75),
+    agg_funcs: Dict[str, str] | None = None,
+    agg_map: Dict[str, Callable[[Any], float]] | None = None,
 ) -> xr.Dataset:
     """Downsample the resolution of a dataset.
 
     Args:
         dataset (xr.Dataset): Dataset to change resolution.
         new_resolution (float): New resolution in degrees. Default is 0.5.
-        expected_longitude_max (np.float64 | None): Expected maximum longitude
-            after resolution change. If None, no further adjustment is made.
-            Default is np.float64(179.75).
+        agg_funcs (Dict[str, str] | None): Aggregation functions for each variable.
+            If None, default aggregation (i.e. mean) is used. Default is None.
+        agg_map (Dict[str, Callable[[Any], float]] | None): Mapping of string
+            to aggregation functions.
+            If None, default mapping is used. Default is None.
 
     Returns:
         xr.Dataset: Dataset with changed resolution.
@@ -230,36 +233,83 @@ def downsample_resolution(
     if new_resolution <= 0:
         raise ValueError("New resolution must be a positive number.")
 
-    old_longitude_min = dataset["longitude"].min().item()
-    old_longitude_max = dataset["longitude"].max().item()
-
     old_resolution = np.round(
         (dataset["longitude"][1] - dataset["longitude"][0]).item(), 2
     )
 
-    if new_resolution < old_resolution:
+    if new_resolution <= old_resolution:
         raise ValueError(
-            f"Degree of new resolution {new_resolution} "
+            f"To downsample, degree of new resolution {new_resolution} "
             "should be greater than {old_resolution}."
         )
 
     weight = int(np.ceil(new_resolution / old_resolution))
 
-    # change resolution
-    dataset = dataset.coarsen(
-        latitude=int(weight), longitude=int(weight), boundary="trim"
-    ).mean()
+    if agg_map is None:
+        agg_map = {
+            "mean": np.mean,
+            "sum": np.sum,
+            "max": np.max,
+            "min": np.min,
+        }
+    if agg_funcs is None:
+        agg_funcs = {var: "mean" for var in dataset.data_vars}
+    elif not isinstance(agg_funcs, dict):
+        raise ValueError(
+            "agg_funcs must be a dictionary of variable names and aggregation functions."
+        )
 
-    # handle floating point precision issues
+    result = {}
+    for var in dataset.data_vars:
+        func_str = agg_funcs.get(var, "mean")
+        func = agg_map.get(func_str, np.mean)
+
+        # apply coarsening and reduction per variable
+        result[var] = (
+            dataset[var]
+            .coarsen(longitude=weight, latitude=weight, boundary="trim")
+            .reduce(func)
+        )
+        result[var].attrs = dataset[var].attrs.copy()
+
+    # copy attributes of the dataset
+    result_dataset = xr.Dataset(result)
+    result_dataset.attrs = dataset.attrs.copy()
+
+    return result_dataset
+
+
+def align_lon_lat_with_popu_data(
+    dataset: xr.Dataset,
+    expected_longitude_max: np.float64 = np.float64(179.75),
+) -> xr.Dataset:
+    """Align longitude and latitude coordinates with population data\
+    of the same resolution.
+    This function is specifically designed to ensure that the
+    longitude and latitude coordinates in the dataset match the expected
+    values used in population data, which are:
+    - Longitude: -179.75 to 179.75, 720 points
+    - Latitude: 89.75 to -89.75, 360 points
+
+    Args:
+        dataset (xr.Dataset): Dataset with longitude and latitude coordinates.
+        expected_longitude_max (np.float64): Expected maximum longitude
+            after adjustment. Default is np.float64(179.75).
+
+    Returns:
+        xr.Dataset: Dataset with adjusted longitude and latitude coordinates.
+    """
+    old_longitude_min = dataset["longitude"].min().item()
+    old_longitude_max = dataset["longitude"].max().item()
+
     # TODO: find a more general solution
     special_case = (
         np.isclose(expected_longitude_max, np.float64(179.75))
-        and np.isclose(old_longitude_min, np.float64(-179.9))
-        and np.isclose(old_longitude_max, np.float64(180.0))
+        and np.isclose(old_longitude_min, np.float64(-179.7))
+        and np.isclose(old_longitude_max, np.float64(179.8))
     )
     if special_case:
-        new_longitude_max = dataset["longitude"].max().item()
-        offset = expected_longitude_max - new_longitude_max
+        offset = expected_longitude_max - old_longitude_max
 
         # adjust coord values
         dataset = dataset.assign_coords(
@@ -268,4 +318,5 @@ def downsample_resolution(
                 "latitude": (dataset["latitude"] + offset).round(2),
             }
         )
+
     return dataset
