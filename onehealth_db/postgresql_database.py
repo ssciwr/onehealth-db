@@ -23,6 +23,7 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 import time
+import datetime
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Type, Tuple, List
@@ -750,6 +751,9 @@ def get_var_values_cartesian(
         np.datetime64(pd.Timestamp(year=tp.year, month=tp.month, day=1), "ns")
         for tp in time_points
     ]
+    time_values_datetime = [
+        datetime.datetime(year=tp.year, month=tp.month, day=1) for tp in time_points
+    ]
     time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
 
     # get the grid points and their ids
@@ -788,6 +792,7 @@ def get_var_values_cartesian(
     )
 
     # get variable values for each grid point and time point
+    values_list = []
     for vt in var_types:
         var_name = vt.name
         values = (
@@ -804,6 +809,7 @@ def get_var_values_cartesian(
         values_array = np.full(
             (len(time_values), len(latitudes), len(longitudes)), np.nan
         )
+        values_list.append([])
 
         # fill the values array with the variable values
         for vv in values:
@@ -811,6 +817,7 @@ def get_var_values_cartesian(
             lat_index, lon_index = grid_index
             time_index = time_ids[vv.time_id]
             values_array[time_index, lat_index, lon_index] = vv.value
+            values_list[-1].append(vv.value)
 
         # add data to the dataset
         ds[var_name] = (("time", "latitude", "longitude"), values_array)
@@ -837,10 +844,10 @@ def get_var_values_cartesian(
         )
 
     mydict = {
-        "time": time_values,
+        "time": time_values_datetime,
         "latitude": latitudes,
         "longitude": longitudes,
-        "var_value": values_array,
+        "var_value": values_list,
     }
     return mydict
 
