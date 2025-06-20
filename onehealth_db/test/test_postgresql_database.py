@@ -756,12 +756,14 @@ def test_get_var_values_cartesian(
     assert len(ds_result["latitude"]) == 2
     assert len(ds_result["longitude"]) == 3
     assert len(ds_result["time"]) == 1
-    assert ds_result["var_value"].shape == (1, 2, 3)
+    assert len(ds_result["var_value"][0]) == 6
+    print(ds_result["var_value"])
+    print(get_dataset.t2m)
     assert math.isclose(
-        ds_result["var_value"][0, 0, 0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5
+        ds_result["var_value"][0][0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5
     )
     assert math.isclose(
-        ds_result["var_value"][0, 1, 1], get_dataset.t2m[1, 1, 0], abs_tol=1e-5
+        ds_result["var_value"][0][4], get_dataset.t2m[1, 1, 0], abs_tol=1e-5
     )  # the dataset has coords lat lon time
 
     # with end point
@@ -776,7 +778,7 @@ def test_get_var_values_cartesian(
     assert len(ds_result["latitude"]) == 2
     assert len(ds_result["longitude"]) == 3
     assert len(ds_result["time"]) == 2
-    assert ds_result["var_value"].shape == (2, 2, 3)
+    assert len(ds_result["var_value"][0]) == 12
 
     # with area
     ds_result = postdb.get_var_values_cartesian(
@@ -790,7 +792,7 @@ def test_get_var_values_cartesian(
     assert len(ds_result["latitude"]) == 2
     assert len(ds_result["longitude"]) == 2
     assert len(ds_result["time"]) == 1
-    assert ds_result["var_value"].shape == (1, 2, 2)
+    assert len(ds_result["var_value"][0]) == 4
 
     # with var names
     ds_result = postdb.get_var_values_cartesian(
@@ -804,7 +806,7 @@ def test_get_var_values_cartesian(
     assert len(ds_result["latitude"]) == 2
     assert len(ds_result["longitude"]) == 3
     assert len(ds_result["time"]) == 1
-    assert ds_result["var_value"].shape == (1, 2, 3)
+    assert len(ds_result["var_value"][0]) == 6
 
     # with netcdf file
     netcdf_file = tmp_path / "test_var_values.nc"
