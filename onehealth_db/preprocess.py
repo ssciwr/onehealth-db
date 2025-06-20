@@ -253,7 +253,7 @@ def downsample_resolution(
             "min": np.min,
         }
     if agg_funcs is None:
-        agg_funcs = {var: "mean" for var in dataset.data_vars}
+        agg_funcs = dict.fromkeys(dataset.data_vars, "mean")
     elif not isinstance(agg_funcs, dict):
         raise ValueError(
             "agg_funcs must be a dictionary of variable names and aggregation functions."
@@ -368,7 +368,7 @@ def upsample_resolution(
     }
 
     if method_map is None:
-        method_map = {var: "linear" for var in dataset.data_vars}
+        method_map = dict.fromkeys(dataset.data_vars, "linear")
     elif not isinstance(method_map, dict):
         raise ValueError(
             "method_map must be a dictionary of variable names and interpolation methods."
