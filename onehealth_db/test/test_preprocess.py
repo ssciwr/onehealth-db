@@ -318,6 +318,8 @@ def test_downsample_resolution_invalid(get_dataset):
     with pytest.raises(ValueError):
         preprocess.downsample_resolution(get_dataset, new_resolution=0.5)
     with pytest.raises(ValueError):
+        preprocess.downsample_resolution(get_dataset, new_resolution=0.2)
+    with pytest.raises(ValueError):
         preprocess.downsample_resolution(
             get_dataset, new_resolution=1.0, agg_funcs="invalid"
         )
@@ -334,12 +336,8 @@ def test_downsample_resolution_default(get_dataset):
     assert len(downsampled_dataset["tp"].dims) == 3
 
     # check if the coordinates are adjusted
-    assert np.allclose(
-        downsampled_dataset["t2m"].latitude.values, [0.25]
-    )  # example for latitude
-    assert np.allclose(
-        downsampled_dataset["t2m"].longitude.values, [0.25]
-    )  # example for longitude
+    assert np.allclose(downsampled_dataset["t2m"].latitude.values, [0.25])
+    assert np.allclose(downsampled_dataset["t2m"].longitude.values, [0.25])
 
     # check agg. values
     assert np.allclose(
@@ -368,12 +366,8 @@ def test_downsample_resolution_custom(get_dataset):
     assert len(downsampled_dataset["tp"].dims) == 3
 
     # check if the coordinates are adjusted
-    assert np.allclose(
-        downsampled_dataset["t2m"].latitude.values, [0.25]
-    )  # example for latitude
-    assert np.allclose(
-        downsampled_dataset["t2m"].longitude.values, [0.25]
-    )  # example for longitude
+    assert np.allclose(downsampled_dataset["t2m"].latitude.values, [0.25])
+    assert np.allclose(downsampled_dataset["t2m"].longitude.values, [0.25])
 
     # check agg. values
     assert np.allclose(
@@ -390,7 +384,7 @@ def test_downsample_resolution_custom(get_dataset):
     for var in downsampled_dataset.data_vars.keys():
         assert downsampled_dataset[var].attrs == get_dataset[var].attrs
 
-    # custom agg map
+    # custom agg map and agg funcs with missing variable
     downsampled_dataset = preprocess.downsample_resolution(
         get_dataset,
         new_resolution=1.0,
@@ -445,3 +439,87 @@ def test_align_lon_lat_with_popu_data_other_cases(get_dataset):
     assert np.allclose(
         aligned_dataset["latitude"].values, get_dataset["latitude"].values
     )
+
+
+def test_upsample_resolution_invalid(get_dataset):
+    with pytest.raises(ValueError):
+        preprocess.upsample_resolution(get_dataset, new_resolution=0)
+    with pytest.raises(ValueError):
+        preprocess.upsample_resolution(get_dataset, new_resolution=-0.5)
+    with pytest.raises(ValueError):
+        preprocess.upsample_resolution(get_dataset, new_resolution=0.5)
+    with pytest.raises(ValueError):
+        preprocess.upsample_resolution(get_dataset, new_resolution=1.0)
+    with pytest.raises(ValueError):
+        preprocess.upsample_resolution(
+            get_dataset, new_resolution=0.1, method_map="invalid"
+        )
+
+
+def test_upsample_resolution_default(get_dataset):
+    # upsample resolution
+    upsampled_dataset = preprocess.upsample_resolution(get_dataset, new_resolution=0.1)
+
+    # check if the dimensions are increased
+    assert len(upsampled_dataset["t2m"].dims) == 3
+    assert len(upsampled_dataset["tp"].dims) == 3
+
+    # check if the coordinates are adjusted
+    assert np.allclose(
+        upsampled_dataset["t2m"].latitude.values, np.arange(0.0, 0.6, 0.1)
+    )  # example for latitude
+    assert np.allclose(
+        upsampled_dataset["t2m"].longitude.values, np.arange(0.0, 1.1, 0.1)
+    )  # example for longitude
+
+    # check interpolated values
+    t2m_interp = upsampled_dataset["t2m"].sel(
+        latitude=0.1, longitude=0.1, method="nearest"
+    )
+    t2m_expected = get_dataset["t2m"].interp(
+        latitude=0.1, longitude=0.1, method="linear"
+    )
+    assert np.allclose(t2m_interp.values, t2m_expected.values)
+    tp_interp = upsampled_dataset["tp"].sel(
+        latitude=0.1, longitude=0.1, method="nearest"
+    )
+    tp_expected = get_dataset["tp"].interp(latitude=0.1, longitude=0.1, method="linear")
+    assert np.allclose(tp_interp.values, tp_expected.values)
+
+    # check attributes
+    assert upsampled_dataset.attrs == get_dataset.attrs
+    for var in upsampled_dataset.data_vars.keys():
+        assert upsampled_dataset[var].attrs == get_dataset[var].attrs
+
+
+def test_upsample_resolution_custom(get_dataset):
+    # upsample resolution with custom interpolation methods
+    method_map = {
+        "t2m": "linear",
+        "tp": "nearest",
+    }
+    upsampled_dataset = preprocess.upsample_resolution(
+        get_dataset, new_resolution=0.1, method_map=method_map
+    )
+
+    # check interpolated values
+    tp_interp = upsampled_dataset["tp"].sel(
+        latitude=0.1, longitude=0.1, method="nearest"
+    )
+    tp_expected = get_dataset["tp"].interp(
+        latitude=0.1, longitude=0.1, method="nearest"
+    )
+    assert np.allclose(tp_interp.values, tp_expected.values)
+
+    # custom map with missing variable
+    method_map = {
+        "t2m": "linear",
+    }  # tp will also use linear interpolation
+    upsampled_dataset = preprocess.upsample_resolution(
+        get_dataset, new_resolution=0.1, method_map=method_map
+    )
+    tp_interp = upsampled_dataset["tp"].sel(
+        latitude=0.1, longitude=0.1, method="nearest"
+    )
+    tp_expected = get_dataset["tp"].interp(latitude=0.1, longitude=0.1, method="linear")
+    assert np.allclose(tp_interp.values, tp_expected.values)

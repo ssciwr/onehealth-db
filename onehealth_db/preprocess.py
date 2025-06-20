@@ -320,3 +320,69 @@ def align_lon_lat_with_popu_data(
         )
 
     return dataset
+
+
+def upsample_resolution(
+    dataset: xr.Dataset,
+    new_resolution: float = 0.1,
+    method_map: Dict[str, str] | None = None,
+) -> xr.Dataset:
+    """Upsample the resolution of a dataset.
+
+    Args:
+        dataset (xr.Dataset): Dataset to change resolution.
+        new_resolution (float): New resolution in degrees. Default is 0.1.
+        method_map (Dict[str, str] | None): Mapping of variable names to
+            interpolation methods. If None, linear interpolation is used.
+            Default is None.
+
+    Returns:
+        xr.Dataset: Dataset with changed resolution.
+    """
+    if new_resolution <= 0:
+        raise ValueError("New resolution must be a positive number.")
+
+    old_resolution = np.round(
+        (dataset["longitude"][1] - dataset["longitude"][0]).item(), 2
+    )
+
+    if new_resolution >= old_resolution:
+        raise ValueError(
+            f"To upsample, degree of new resolution {new_resolution} "
+            "should be smaller than {old_resolution}."
+        )
+
+    lat_min, lat_max = (
+        dataset["latitude"].min().item(),
+        dataset["latitude"].max().item(),
+    )
+    lon_min, lon_max = (
+        dataset["longitude"].min().item(),
+        dataset["longitude"].max().item(),
+    )
+    updated_lat = np.arange(lat_min, lat_max + new_resolution, new_resolution)
+    updated_lon = np.arange(lon_min, lon_max + new_resolution, new_resolution)
+    updated_coords = {
+        "latitude": updated_lat,
+        "longitude": updated_lon,
+    }
+
+    if method_map is None:
+        method_map = {var: "linear" for var in dataset.data_vars}
+    elif not isinstance(method_map, dict):
+        raise ValueError(
+            "method_map must be a dictionary of variable names and interpolation methods."
+        )
+
+    # interpolate each variable
+    result = {}
+    for var in dataset.data_vars:
+        method = method_map.get(var, "linear")
+        result[var] = dataset[var].interp(**updated_coords, method=method)
+        result[var].attrs = dataset[var].attrs.copy()
+
+    # create a new dataset with the interpolated variables
+    result_dataset = xr.Dataset(result)
+    result_dataset.attrs = dataset.attrs.copy()
+
+    return result_dataset
