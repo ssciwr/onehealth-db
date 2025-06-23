@@ -27,6 +27,7 @@ import datetime
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Type, Tuple, List
+from fastapi import HTTPException
 
 
 CRS = 4326
@@ -712,6 +713,96 @@ def get_var_types(
 
 
 def get_var_values_cartesian(
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+    var_names: None | List[str] = None,
+) -> dict:
+    """Get variable values for a cartesian map.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are used.
+
+    Returns:
+        dict: a dict with (time, latitude, longitude, var_value) keys.
+    """
+    # get the time points and their ids
+    time_points = get_time_points(session, start_time_point, end_time_point)
+
+    if not time_points:
+        print("No time points found in the specified range.")
+        raise HTTPException(
+            status_code=400, detail="Missing data for requested time point."
+        )
+
+    # create a list of time points and their ids
+
+    time_values_datetime = [
+        datetime.date(year=tp.year, month=tp.month, day=1) for tp in time_points
+    ]
+    time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
+
+    # get the grid points and their ids
+    grid_points = session.query(GridPoint).all()
+
+    # Sort and deduplicate latitudes and longitudes
+    latitudes = sorted({gp.latitude for gp in grid_points})
+    longitudes = sorted({gp.longitude for gp in grid_points})
+
+    # Create fast index maps for latitude and longitude
+    lat_to_index = {lat: i for i, lat in enumerate(latitudes)}
+    lon_to_index = {lon: i for i, lon in enumerate(longitudes)}
+
+    # Map grid_id to (lat_index, lon_index)
+    grid_ids = {
+        gp.id: (lat_to_index[gp.latitude], lon_to_index[gp.longitude])
+        for gp in grid_points
+    }
+    #
+    # get variable types and their ids
+    var_types = get_var_types(session, var_names)
+    if not var_types:
+        print("No variable types found in the specified names.")
+        raise HTTPException(
+            status_code=400, detail="Missing variable type for requested time point."
+        )
+
+    # get variable values for each grid point and time point
+    values_list = []
+    for vt in var_types:
+        values = (
+            session.query(VarValue)
+            .filter(
+                VarValue.grid_id.in_(grid_ids.keys()),
+                VarValue.time_id.in_(time_ids.keys()),
+                VarValue.var_id == vt.id,
+            )
+            .all()
+        )
+
+        values_list.append([])
+
+        # fill the values array with the variable values
+        for vv in values:
+            values_list[-1].append(vv.value)
+
+    mydict = {
+        "time": time_values_datetime,
+        "latitude": latitudes,
+        "longitude": longitudes,
+        "var_value": values_list,
+        "var_names": [vt.name for vt in var_types],
+        "var_units": [vt.unit for vt in var_types],
+    }
+    return mydict
+
+
+def get_var_values_cartesian_for_download(
     session: Session,
     start_time_point: Tuple[int, int],
     end_time_point: Tuple[int, int] | None = None,

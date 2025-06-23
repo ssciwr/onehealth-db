@@ -8,6 +8,7 @@ from sqlalchemy.orm.session import Session, sessionmaker
 import geopandas as gpd
 from shapely.geometry import Polygon
 import math
+from fastapi import HTTPException
 
 
 # for local docker desktop,
@@ -46,6 +47,47 @@ def get_session(get_engine_with_tables):
 
     # tear down
     session.close()
+
+
+@pytest.fixture(scope="function")
+def insert_data(get_session, get_dataset, get_engine_with_tables):
+    var_type_data = [
+        {
+            "name": "t2m",
+            "unit": "K",
+            "description": "2m temperature",
+        }
+    ]
+    postdb.insert_var_types(get_session, var_type_data)
+    # insert grid points
+    postdb.insert_grid_points(
+        get_session, get_dataset.latitude.values, get_dataset.longitude.values
+    )
+    # insert time points
+    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
+
+    # get the id maps
+    grid_id_map, time_id_map, var_id_map = retrieve_id_maps(
+        get_session, get_dataset, var_type_data
+    )
+
+    # insert var values
+    postdb.insert_var_values(
+        get_engine_with_tables,
+        get_dataset,
+        "t2m",
+        grid_id_map,
+        time_id_map,
+        var_id_map,
+        to_monthly=False,
+    )
+    yield get_session
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
 
 
 def cleanup(engine):
@@ -706,47 +748,75 @@ def test_get_var_types(get_session):
     get_session.commit()
 
 
-def test_get_var_values_cartesian(
-    get_session, get_dataset, get_engine_with_tables, tmp_path
-):
-    # TODO: split this test into smaller tests for better readability
-    # insert var types
-    var_type_data = [
-        {
-            "name": "t2m",
-            "unit": "K",
-            "description": "2m temperature",
-        }
-    ]
-    postdb.insert_var_types(get_session, var_type_data)
-
-    # insert grid points
-    postdb.insert_grid_points(
-        get_session, get_dataset.latitude.values, get_dataset.longitude.values
-    )
-    # insert time points
-    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
-
-    # get the id maps
-    grid_id_map, time_id_map, var_id_map = retrieve_id_maps(
-        get_session, get_dataset, var_type_data
-    )
-
-    # insert var values
-    postdb.insert_var_values(
-        get_engine_with_tables,
-        get_dataset,
-        "t2m",
-        grid_id_map,
-        time_id_map,
-        var_id_map,
-        to_monthly=False,
-    )
-
+def test_get_var_values_cartesian(get_dataset, insert_data):
     # test the function
     # normal case
     ds_result = postdb.get_var_values_cartesian(
-        get_session,
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        var_names=None,
+    )
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 1
+    assert len(ds_result["var_value"][0]) == 6
+    assert math.isclose(
+        ds_result["var_value"][0][0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5
+    )
+    assert math.isclose(
+        ds_result["var_value"][0][4], get_dataset.t2m[1, 1, 0], abs_tol=1e-5
+    )
+    # with end point
+    ds_result = postdb.get_var_values_cartesian(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=(2024, 1),
+        var_names=None,
+    )
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 2
+    assert len(ds_result["var_value"][0]) == 12
+
+    # with var names
+    ds_result = postdb.get_var_values_cartesian(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        var_names=["t2m"],
+    )
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 1
+    assert len(ds_result["var_value"][0]) == 6
+
+    # test HTTP exceptions
+    # test for missing time point
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian(
+            insert_data,
+            start_time_point=(2020, 1),
+            end_time_point=None,
+            var_names=None,
+        )
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian(
+            insert_data,
+            start_time_point=(2020, 1),
+            end_time_point=None,
+            var_names=["non_existing_var"],
+        )
+
+
+def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
+    # TODO: split this test into smaller tests for better readability
+    # insert var types
+
+    # test the function
+    # normal case
+    ds_result = postdb.get_var_values_cartesian_for_download(
+        insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
         area=None,
@@ -757,8 +827,6 @@ def test_get_var_values_cartesian(
     assert len(ds_result["longitude"]) == 3
     assert len(ds_result["time"]) == 1
     assert len(ds_result["var_value"][0]) == 6
-    print(ds_result["var_value"])
-    print(get_dataset.t2m)
     assert math.isclose(
         ds_result["var_value"][0][0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5
     )
@@ -767,8 +835,8 @@ def test_get_var_values_cartesian(
     )  # the dataset has coords lat lon time
 
     # with end point
-    ds_result = postdb.get_var_values_cartesian(
-        get_session,
+    ds_result = postdb.get_var_values_cartesian_for_download(
+        insert_data,
         start_time_point=(2023, 1),
         end_time_point=(2024, 1),
         area=None,
@@ -781,8 +849,8 @@ def test_get_var_values_cartesian(
     assert len(ds_result["var_value"][0]) == 12
 
     # with area
-    ds_result = postdb.get_var_values_cartesian(
-        get_session,
+    ds_result = postdb.get_var_values_cartesian_for_download(
+        insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
         area=[11.0, 10.0, 10.0, 11.0],  # [N, W, S, E]
@@ -794,24 +862,10 @@ def test_get_var_values_cartesian(
     assert len(ds_result["time"]) == 1
     assert len(ds_result["var_value"][0]) == 4
 
-    # with var names
-    ds_result = postdb.get_var_values_cartesian(
-        get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=None,
-        var_names=["t2m"],
-        netcdf_file=None,
-    )
-    assert len(ds_result["latitude"]) == 2
-    assert len(ds_result["longitude"]) == 3
-    assert len(ds_result["time"]) == 1
-    assert len(ds_result["var_value"][0]) == 6
-
     # with netcdf file
     netcdf_file = tmp_path / "test_var_values.nc"
-    ds_result = postdb.get_var_values_cartesian(
-        get_session,
+    ds_result = postdb.get_var_values_cartesian_for_download(
+        insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
         area=None,
@@ -828,8 +882,8 @@ def test_get_var_values_cartesian(
 
     # none cases
     # no time points
-    ds_result = postdb.get_var_values_cartesian(
-        get_session,
+    ds_result = postdb.get_var_values_cartesian_for_download(
+        insert_data,
         start_time_point=(2025, 1),
         end_time_point=None,
         area=None,
@@ -838,8 +892,8 @@ def test_get_var_values_cartesian(
     )
     assert ds_result == {"latitude": [], "longitude": [], "time": [], "var_value": []}
     # no grid points
-    ds_result = postdb.get_var_values_cartesian(
-        get_session,
+    ds_result = postdb.get_var_values_cartesian_for_download(
+        insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
         area=[20.0, 20.0, 20.0, 20.0],  # [N, W, S, E]
@@ -848,8 +902,8 @@ def test_get_var_values_cartesian(
     )
     assert ds_result == {"latitude": [], "longitude": [], "time": [], "var_value": []}
     # no var types
-    ds_result = postdb.get_var_values_cartesian(
-        get_session,
+    ds_result = postdb.get_var_values_cartesian_for_download(
+        insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
         area=None,
@@ -857,13 +911,6 @@ def test_get_var_values_cartesian(
         netcdf_file=None,
     )
     assert ds_result == {"latitude": [], "longitude": [], "time": [], "var_value": []}
-
-    # clean up
-    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
-    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
-    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
-    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
-    get_session.commit()
 
 
 def test_get_nuts_regions(
