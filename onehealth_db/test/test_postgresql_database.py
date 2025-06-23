@@ -831,7 +831,7 @@ def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
     # remove the file after test
     netcdf_filename.unlink()
     # with end point
-    ds_result = postdb.get_var_values_cartesian_for_download(
+    postdb.get_var_values_cartesian_for_download(
         insert_data,
         start_time_point=(2023, 1),
         end_time_point=(2024, 1),
@@ -849,7 +849,7 @@ def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
     netcdf_filename.unlink()
 
     # with area
-    ds_result = postdb.get_var_values_cartesian_for_download(
+    postdb.get_var_values_cartesian_for_download(
         insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
@@ -867,7 +867,7 @@ def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
     netcdf_filename.unlink()
 
     # with var names
-    ds_result = postdb.get_var_values_cartesian_for_download(
+    postdb.get_var_values_cartesian_for_download(
         insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
