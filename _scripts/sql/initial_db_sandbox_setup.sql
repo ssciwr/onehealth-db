@@ -18,12 +18,12 @@
 -- WARNING: RUN WITH POSTGRES ROOT USER ('postgres')
 
 -- Query 1. Create 'onehealth_db' database
-CREATE DATABASE onehealth_db;
+-- CREATE DATABASE onehealth_db;
 
 -- Query 2. Set permissions and role for 'omnipath_db_sandbox' database
-CREATE USER onehealth_admin WITH PASSWORD 'onehealth123';
-ALTER DATABASE onehealth_db OWNER TO onehealth_admin;
-GRANT ALL PRIVILEGES ON DATABASE onehealth_db TO onehealth_admin;
+-- CREATE USER onehealth_admin WITH PASSWORD 'onehealth123';
+-- ALTER DATABASE onehealth_db OWNER TO onehealth_admin;
+-- GRANT ALL PRIVILEGES ON DATABASE onehealth_db TO onehealth_admin;
 
 -- Query 3. Create the tables for the database here
 

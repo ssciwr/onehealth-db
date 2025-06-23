@@ -8,6 +8,7 @@ from sqlalchemy.orm.session import Session, sessionmaker
 import geopandas as gpd
 from shapely.geometry import Polygon
 import math
+from fastapi import HTTPException
 
 
 # for local docker desktop,
@@ -46,6 +47,47 @@ def get_session(get_engine_with_tables):
 
     # tear down
     session.close()
+
+
+@pytest.fixture(scope="function")
+def insert_data(get_session, get_dataset, get_engine_with_tables):
+    var_type_data = [
+        {
+            "name": "t2m",
+            "unit": "K",
+            "description": "2m temperature",
+        }
+    ]
+    postdb.insert_var_types(get_session, var_type_data)
+    # insert grid points
+    postdb.insert_grid_points(
+        get_session, get_dataset.latitude.values, get_dataset.longitude.values
+    )
+    # insert time points
+    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
+
+    # get the id maps
+    grid_id_map, time_id_map, var_id_map = retrieve_id_maps(
+        get_session, get_dataset, var_type_data
+    )
+
+    # insert var values
+    postdb.insert_var_values(
+        get_engine_with_tables,
+        get_dataset,
+        "t2m",
+        grid_id_map,
+        time_id_map,
+        var_id_map,
+        to_monthly=False,
+    )
+    yield get_session
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
 
 
 def cleanup(engine):
@@ -147,8 +189,9 @@ def test_initialize_database(get_docker_image):
         cleanup(engine3)
 
 
-def test_insert_nuts_def(get_engine_with_tables, get_session, tmp_path):
-    nuts_path = tmp_path / "nuts_def.shp"
+@pytest.fixture
+def get_nuts_def_data():
+    # create a sample NUTS shapefile data
     polygon1 = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     polygon2 = Polygon([(1, 0), (2, 0), (2, 1), (1, 1)])
     gdf = gpd.GeoDataFrame(
@@ -165,7 +208,15 @@ def test_insert_nuts_def(get_engine_with_tables, get_session, tmp_path):
         geometry=[polygon1, polygon2],
         crs="EPSG:4326",
     )
-    gdf.to_file(nuts_path, driver="ESRI Shapefile")
+    return gdf
+
+
+def test_insert_nuts_def(
+    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data
+):
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
 
     postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
 
@@ -578,7 +629,7 @@ def test_get_var_value(get_session):
     # test the function
     result = postdb.get_var_value(
         get_session,
-        var_type.name,
+        str(var_type.name),
         grid_point.latitude,
         grid_point.longitude,
         time_point.year,
@@ -604,4 +655,541 @@ def test_get_var_value(get_session):
     get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_time_points(get_session, get_dataset):
+    # insert time points
+    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
+
+    # test the function
+    result = postdb.get_time_points(
+        get_session, start_time_point=(2023, 1), end_time_point=None
+    )
+    assert len(result) == 1
+    assert result[0].year == 2023
+    assert result[0].month == 1
+    assert result[0].day == 1
+
+    result = postdb.get_time_points(
+        get_session, start_time_point=(2023, 1), end_time_point=(2024, 1)
+    )
+    assert len(result) == 2
+    assert result[0].year == 2023
+    assert result[0].month == 1
+    assert result[1].year == 2024
+    assert result[1].month == 1
+
+    # test with no time points
+    result = postdb.get_time_points(get_session, start_time_point=(2025, 1))
+    assert len(result) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_grid_points(get_session, get_dataset):
+    # insert grid points
+    postdb.insert_grid_points(
+        get_session, get_dataset.latitude.values, get_dataset.longitude.values
+    )
+
+    # test the function
+    result = postdb.get_grid_points(get_session, area=None)
+    assert len(result) == 6  # 2 latitudes * 3 longitudes
+    assert math.isclose(result[0].latitude, 10.0, abs_tol=1e-5)
+    assert math.isclose(result[0].longitude, 10.0, abs_tol=1e-5)
+
+    result = postdb.get_grid_points(
+        get_session, area=(11.0, 10.0, 10.0, 12.0)
+    )  # [N, W, S, E]
+    assert len(result) == 6
+    assert math.isclose(result[0].latitude, 10.0, abs_tol=1e-5)
+    assert math.isclose(result[0].longitude, 10.0, abs_tol=1e-5)
+
+    # no grid points case
+    result = postdb.get_grid_points(get_session, area=(20.0, 20.0, 20.0, 20.0))
+    assert len(result) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_var_types(get_session):
+    # insert var types
+    var_type_data = [
+        {
+            "name": "t2m",
+            "unit": "K",
+            "description": "2m temperature",
+        }
+    ]
+    postdb.insert_var_types(get_session, var_type_data)
+
+    # test the function
+    result = postdb.get_var_types(get_session, var_names=None)
+    assert len(result) == 1
+    assert result[0].name == "t2m"
+    assert result[0].unit == "K"
+    assert result[0].description == "2m temperature"
+
+    result = postdb.get_var_types(get_session, var_names=["t2m"])
+    assert len(result) == 1
+    assert result[0].name == "t2m"
+
+    # test with no var types
+    result = postdb.get_var_types(get_session, var_names=["non_existing_var"])
+    assert len(result) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_var_values_cartesian(get_dataset, insert_data):
+    # test the function
+    # normal case
+    ds_result = postdb.get_var_values_cartesian(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        var_names=None,
+    )
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 1
+    assert len(ds_result["var_value"][0]) == 6
+    assert math.isclose(
+        ds_result["var_value"][0][0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5
+    )
+    assert math.isclose(
+        ds_result["var_value"][0][4], get_dataset.t2m[1, 1, 0], abs_tol=1e-5
+    )
+    # with end point
+    ds_result = postdb.get_var_values_cartesian(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=(2024, 1),
+        var_names=None,
+    )
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 2
+    assert len(ds_result["var_value"][0]) == 12
+
+    # with var names
+    ds_result = postdb.get_var_values_cartesian(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        var_names=["t2m"],
+    )
+    assert len(ds_result["latitude"]) == 2
+    assert len(ds_result["longitude"]) == 3
+    assert len(ds_result["time"]) == 1
+    assert len(ds_result["var_value"][0]) == 6
+
+    # test HTTP exceptions
+    # test for missing time point
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian(
+            insert_data,
+            start_time_point=(2020, 1),
+            end_time_point=None,
+            var_names=None,
+        )
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian(
+            insert_data,
+            start_time_point=(2020, 1),
+            end_time_point=None,
+            var_names=["non_existing_var"],
+        )
+
+
+def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
+    # test the function
+    netcdf_filename = tmp_path / "test_var_values.nc"
+    postdb.get_var_values_cartesian_for_download(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        netcdf_file=netcdf_filename,
+    )
+    assert netcdf_filename.exists()
+    ds_result = xr.open_dataset(netcdf_filename)
+    assert len(ds_result.latitude) == 2
+    assert len(ds_result.longitude) == 3
+    assert len(ds_result.time) == 1
+    assert ds_result.t2m.shape == (1, 2, 3)
+    assert math.isclose(ds_result.t2m[0, 0, 0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5)
+    assert math.isclose(ds_result.t2m[0, 1, 1], get_dataset.t2m[1, 1, 0], abs_tol=1e-5)
+    # remove the file after test
+    netcdf_filename.unlink()
+    # with end point
+    postdb.get_var_values_cartesian_for_download(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=(2024, 1),
+        area=None,
+        var_names=None,
+        netcdf_file=netcdf_filename,
+    )
+    assert netcdf_filename.exists()
+    ds_result = xr.open_dataset(netcdf_filename)
+    assert len(ds_result.latitude) == 2
+    assert len(ds_result.longitude) == 3
+    assert len(ds_result.time) == 2
+    assert ds_result.t2m.shape == (2, 2, 3)
+    # remove the file after test
+    netcdf_filename.unlink()
+
+    # with area
+    postdb.get_var_values_cartesian_for_download(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=(11.0, 10.0, 10.0, 11.0),  # [N, W, S, E]
+        var_names=None,
+        netcdf_file=netcdf_filename,
+    )
+    assert netcdf_filename.exists()
+    ds_result = xr.open_dataset(netcdf_filename)
+    assert len(ds_result.latitude) == 2
+    assert len(ds_result.longitude) == 2
+    assert len(ds_result.time) == 1
+    assert ds_result.t2m.shape == (1, 2, 2)
+    # remove the file after test
+    netcdf_filename.unlink()
+
+    # with var names
+    postdb.get_var_values_cartesian_for_download(
+        insert_data,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=["t2m"],
+        netcdf_file=netcdf_filename,
+    )
+    assert netcdf_filename.exists()
+    ds_result = xr.open_dataset(netcdf_filename)
+    assert len(ds_result.latitude) == 2
+    assert len(ds_result.longitude) == 3
+    assert len(ds_result.time) == 1
+    assert ds_result.t2m.shape == (1, 2, 3)
+    # remove the file after test
+    netcdf_filename.unlink()
+
+    # none cases
+    # no time points
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian_for_download(
+            insert_data,
+            start_time_point=(2025, 1),
+            end_time_point=None,
+            area=None,
+            var_names=None,
+        )
+
+    # no grid points
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian_for_download(
+            insert_data,
+            start_time_point=(2023, 1),
+            end_time_point=None,
+            area=(20.0, 20.0, 20.0, 20.0),  # [N, W, S, E]
+            var_names=None,
+        )
+
+    # no var types
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian_for_download(
+            insert_data,
+            start_time_point=(2023, 1),
+            end_time_point=None,
+            area=None,
+            var_names=["non_existing_var"],
+        )
+
+
+def test_get_nuts_regions(
+    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data
+):
+    # create a sample NUTS shapefile
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
+
+    # insert NUTS definitions
+    postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
+
+    # test the function
+    # normal case
+    result = postdb.get_nuts_regions(get_engine_with_tables, area=None)
+    assert len(result) == 2
+    assert result.loc[0, "nuts_id"] == "NUTS1"  # result is a geodataframe
+    assert result.loc[0, "name_latn"] == "Test NUTS"
+    assert result.loc[1, "nuts_id"] == "NUTS2"
+    assert result.loc[1, "name_latn"] == "Test NUTS2"
+
+    # with area
+    result = postdb.get_nuts_regions(
+        get_engine_with_tables, area=(1.0, 0.0, 0.0, 2.0)  # [N, W, S, E]
+    )
+    assert len(result) == 2
+    assert result.loc[0, "nuts_id"] == "NUTS1"
+    assert result.loc[0, "name_latn"] == "Test NUTS"
+    assert result.loc[1, "nuts_id"] == "NUTS2"
+    assert result.loc[1, "name_latn"] == "Test NUTS2"
+
+    # no nuts data
+    result = postdb.get_nuts_regions(
+        get_engine_with_tables, area=(20.0, 20.0, 20.0, 20.0)  # [N, W, S, E]
+    )
+    assert result.empty
+
+    # clean up
+    get_session.query(postdb.NutsDef).delete()
+    get_session.commit()
+
+
+def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
+    nuts_regions = gpd.GeoDataFrame(
+        {
+            "nuts_id": ["NUTS1", "NUTS2"],
+            "geometry": [
+                Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
+                Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
+            ],
+        },
+        crs="EPSG:4326",
+    )
+    latitudes = np.array([0.5, 1.0, 1.5])
+    longitudes = np.array([0.5, 1.0, 1.5])
+    postdb.insert_grid_points(get_session, latitudes, longitudes)
+
+    # test the function
+    # normal case
+    grid_ids = postdb.get_grid_ids_in_nuts(get_engine_with_tables, nuts_regions)
+    assert len(grid_ids) == 6
+    assert grid_ids[0] == 1
+    assert grid_ids[1] == 2
+
+    # none cases
+    grid_ids = postdb.get_grid_ids_in_nuts(
+        get_engine_with_tables, nuts_regions=gpd.GeoDataFrame(geometry=[])
+    )
+    assert len(grid_ids) == 0
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
+def test_get_var_values_nuts(
+    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data, get_dataset
+):
+    # create a sample NUTS shapefile
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
+
+    # insert NUTS definitions
+    postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
+
+    # insert grid points
+    # edit grid point to match NUTS regions
+    get_dataset = get_dataset.assign_coords(
+        latitude=("latitude", [0.5, 1.0]),
+        longitude=("longitude", [0.5, 1.0, 1.5]),
+    )
+    postdb.insert_grid_points(
+        get_session, get_dataset.latitude.values, get_dataset.longitude.values
+    )
+
+    # insert time points
+    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
+
+    # insert var types
+    var_type_data = [
+        {
+            "name": "t2m",
+            "unit": "K",
+            "description": "2m temperature",
+        }
+    ]
+    postdb.insert_var_types(get_session, var_type_data)
+
+    # get the id maps
+    grid_id_map, time_id_map, var_id_map = retrieve_id_maps(
+        get_session, get_dataset, var_type_data
+    )
+
+    # insert var values
+    postdb.insert_var_values(
+        get_engine_with_tables,
+        get_dataset,
+        "t2m",
+        grid_id_map,
+        time_id_map,
+        var_id_map,
+        to_monthly=False,
+    )
+
+    # test the function
+    # normal case
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 2
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[0, "var_name"] == "t2m"
+    assert rersult_gpd.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
+    assert rersult_gpd.loc[1, "nuts_id"] == "NUTS2"
+    assert rersult_gpd.loc[1, "var_name"] == "t2m"
+    assert rersult_gpd.loc[1, "var_value"] == np.mean(
+        get_dataset.t2m[:, 1:, 0]
+    )  # dataset has coords lat lon time
+    assert (
+        len(rersult_gpd.columns) == get_nuts_def_data.shape[1] + 3
+    )  # var_name, var_value, time
+
+    # with end time point
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=(2024, 1),
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 4
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[0, "var_name"] == "t2m"
+    assert rersult_gpd.loc[0, "time"] == np.datetime64("2023-01-01", "ns")
+    assert rersult_gpd.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
+    assert rersult_gpd.loc[1, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[1, "time"] == np.datetime64("2024-01-01", "ns")
+    assert rersult_gpd.loc[1, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 1]
+    )  # dataset has coords lat lon time
+
+    # with area
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=(0.5, 0.0, 0.0, 0.5),  # [N, W, S, E]
+        var_names=None,
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 1
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
+    assert rersult_gpd.loc[0, "var_name"] == "t2m"
+    assert rersult_gpd.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
+
+    # with var names
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=["t2m"],
+        shapefile=None,
+    )
+    assert len(rersult_gpd) == 2
+    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
+
+    # with shapefile
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=tmp_path / "nuts_var_values.shp",
+    )
+    assert len(rersult_gpd) == 2
+    check_results = gpd.read_file(tmp_path / "nuts_var_values.shp")
+    assert len(check_results) == 2
+    assert check_results.loc[0, "nuts_id"] == "NUTS1"
+    assert check_results.loc[0, "var_name"] == "t2m"
+    assert check_results.loc[0, "var_value"] == np.mean(
+        get_dataset.t2m[:, :2, 0]
+    )  # dataset has coords lat lon time
+
+    # none cases
+    # no time points
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2025, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert rersult_gpd is None
+    # no nuts regions
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=(20.0, 20.0, 20.0, 20.0),  # [N, W, S, E]
+        var_names=None,
+        shapefile=None,
+    )
+    assert rersult_gpd is None
+    # no var types
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=["non_existing_var"],
+        shapefile=None,
+    )
+    assert rersult_gpd is None
+    # no var values
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.commit()
+    rersult_gpd = postdb.get_var_values_nuts(
+        get_engine_with_tables,
+        get_session,
+        start_time_point=(2023, 1),
+        end_time_point=None,
+        area=None,
+        var_names=None,
+        shapefile=None,
+    )
+    assert rersult_gpd is None
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
     get_session.commit()
