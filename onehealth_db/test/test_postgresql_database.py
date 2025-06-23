@@ -629,7 +629,7 @@ def test_get_var_value(get_session):
     # test the function
     result = postdb.get_var_value(
         get_session,
-        var_type.name,
+        str(var_type.name),
         grid_point.latitude,
         grid_point.longitude,
         time_point.year,
@@ -702,14 +702,14 @@ def test_get_grid_points(get_session, get_dataset):
     assert math.isclose(result[0].longitude, 10.0, abs_tol=1e-5)
 
     result = postdb.get_grid_points(
-        get_session, area=[11.0, 10.0, 10.0, 12.0]
+        get_session, area=(11.0, 10.0, 10.0, 12.0)
     )  # [N, W, S, E]
     assert len(result) == 6
     assert math.isclose(result[0].latitude, 10.0, abs_tol=1e-5)
     assert math.isclose(result[0].longitude, 10.0, abs_tol=1e-5)
 
     # no grid points case
-    result = postdb.get_grid_points(get_session, area=[20.0, 20.0, 20.0, 20.0])
+    result = postdb.get_grid_points(get_session, area=(20.0, 20.0, 20.0, 20.0))
     assert len(result) == 0
 
     # clean up
@@ -810,7 +810,6 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
 
 
 def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
-    # TODO: split this test into smaller tests for better readability
     # test the function
     netcdf_filename = tmp_path / "test_var_values.nc"
     postdb.get_var_values_cartesian_for_download(
@@ -854,7 +853,7 @@ def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
         insert_data,
         start_time_point=(2023, 1),
         end_time_point=None,
-        area=[11.0, 10.0, 10.0, 11.0],  # [N, W, S, E]
+        area=(11.0, 10.0, 10.0, 11.0),  # [N, W, S, E]
         var_names=None,
         netcdf_file=netcdf_filename,
     )
@@ -902,7 +901,7 @@ def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
             insert_data,
             start_time_point=(2023, 1),
             end_time_point=None,
-            area=[20.0, 20.0, 20.0, 20.0],  # [N, W, S, E]
+            area=(20.0, 20.0, 20.0, 20.0),  # [N, W, S, E]
             var_names=None,
         )
 
@@ -939,7 +938,7 @@ def test_get_nuts_regions(
 
     # with area
     result = postdb.get_nuts_regions(
-        get_engine_with_tables, area=[1.0, 0.0, 0.0, 2.0]  # [N, W, S, E]
+        get_engine_with_tables, area=(1.0, 0.0, 0.0, 2.0)  # [N, W, S, E]
     )
     assert len(result) == 2
     assert result.loc[0, "nuts_id"] == "NUTS1"
@@ -949,7 +948,7 @@ def test_get_nuts_regions(
 
     # no nuts data
     result = postdb.get_nuts_regions(
-        get_engine_with_tables, area=[20.0, 20.0, 20.0, 20.0]  # [N, W, S, E]
+        get_engine_with_tables, area=(20.0, 20.0, 20.0, 20.0)  # [N, W, S, E]
     )
     assert result.empty
 
@@ -1096,7 +1095,7 @@ def test_get_var_values_nuts(
         get_session,
         start_time_point=(2023, 1),
         end_time_point=None,
-        area=[0.5, 0.0, 0.0, 0.5],  # [N, W, S, E]
+        area=(0.5, 0.0, 0.0, 0.5),  # [N, W, S, E]
         var_names=None,
         shapefile=None,
     )
@@ -1157,7 +1156,7 @@ def test_get_var_values_nuts(
         get_session,
         start_time_point=(2023, 1),
         end_time_point=None,
-        area=[20.0, 20.0, 20.0, 20.0],  # [N, W, S, E]
+        area=(20.0, 20.0, 20.0, 20.0),  # [N, W, S, E]
         var_names=None,
         shapefile=None,
     )

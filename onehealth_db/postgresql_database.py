@@ -828,7 +828,6 @@ def get_var_values_cartesian_for_download(
         dict: a dict with (time, latitude, longitude, var_value) keys.
             time or var_value is empty if no data is found.
     """
-    # TODO: shorten or simplify this function
     # get the time points and their ids
     time_points = get_time_points(session, start_time_point, end_time_point)
 
