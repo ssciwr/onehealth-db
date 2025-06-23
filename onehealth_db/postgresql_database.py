@@ -808,7 +808,7 @@ def get_var_values_cartesian_for_download(
     end_time_point: Tuple[int, int] | None = None,
     area: None | Tuple[float, float, float, float] = None,
     var_names: None | List[str] = None,
-    netcdf_file: str | None = None,
+    netcdf_file: str = "cartesian_grid_data_onehealth.nc",
 ) -> dict:
     """Get variable values for a cartesian map.
 
@@ -822,8 +822,7 @@ def get_var_values_cartesian_for_download(
             If None, all grid points are used.
         var_names (None | List[str]): List of variable names to filter by.
             If None, all variable types are used.
-        netcdf_file (str | None): Path to the NetCDF file to save the dataset.
-            If None, the dataset is not saved to a file.
+        netcdf_file (str): Name of the NetCDF file to save the dataset.
 
     Returns:
         dict: a dict with (time, latitude, longitude, var_value) keys.
@@ -835,15 +834,14 @@ def get_var_values_cartesian_for_download(
 
     if not time_points:
         print("No time points found in the specified range.")
-        return {"time": [], "latitude": [], "longitude": [], "var_value": []}
+        raise HTTPException(
+            status_code=400, detail="Missing data for requested time point."
+        )
 
     # create a list of time points and their ids
     time_values = [
         np.datetime64(pd.Timestamp(year=tp.year, month=tp.month, day=1), "ns")
         for tp in time_points
-    ]
-    time_values_datetime = [
-        datetime.datetime(year=tp.year, month=tp.month, day=1) for tp in time_points
     ]
     time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
 
@@ -852,7 +850,10 @@ def get_var_values_cartesian_for_download(
 
     if not grid_points:
         print("No grid points found in the specified area.")
-        return {"time": [], "latitude": [], "longitude": [], "var_value": []}
+        raise HTTPException(
+            status_code=400, detail="No grid points found in specified area."
+        )
+
     # Sort and deduplicate latitudes and longitudes
     latitudes = sorted(set(gp.latitude for gp in grid_points))
     longitudes = sorted(set(gp.longitude for gp in grid_points))
@@ -871,7 +872,9 @@ def get_var_values_cartesian_for_download(
     var_types = get_var_types(session, var_names)
     if not var_types:
         print("No variable types found in the specified names.")
-        return {"time": [], "latitude": [], "longitude": [], "var_value": []}
+        raise HTTPException(
+            status_code=400, detail="Missing variable type for requested time point."
+        )
 
     # create an empty dataset
     ds = xr.Dataset(
@@ -883,7 +886,6 @@ def get_var_values_cartesian_for_download(
     )
 
     # get variable values for each grid point and time point
-    values_list = []
     for vt in var_types:
         var_name = vt.name
         values = (
@@ -900,7 +902,6 @@ def get_var_values_cartesian_for_download(
         values_array = np.full(
             (len(time_values), len(latitudes), len(longitudes)), np.nan
         )
-        values_list.append([])
 
         # fill the values array with the variable values
         for vv in values:
@@ -908,7 +909,6 @@ def get_var_values_cartesian_for_download(
             lat_index, lon_index = grid_index
             time_index = time_ids[vv.time_id]
             values_array[time_index, lat_index, lon_index] = vv.value
-            values_list[-1].append(vv.value)
 
         # add data to the dataset
         ds[var_name] = (("time", "latitude", "longitude"), values_array)
@@ -922,25 +922,11 @@ def get_var_values_cartesian_for_download(
     ds.attrs["created_at"] = pd.Timestamp.now().isoformat()
     ds.attrs["description"] = "Variable values for a cartesian map from the database."
 
-    if netcdf_file:
-        # save the dataset to a NetCDF file
-        ds.to_netcdf(netcdf_file)
-        print(f"Dataset saved to {netcdf_file}")
+    # save the dataset to a NetCDF file
+    ds.to_netcdf(netcdf_file)
+    print(f"Dataset saved to {netcdf_file}")
 
-    if not var_types:
-        # if no variable types, still generate a var_value array
-        # this should be refactored to avoid this case
-        values_array = np.full(
-            (len(time_values), len(latitudes), len(longitudes)), np.nan
-        )
-
-    mydict = {
-        "time": time_values_datetime,
-        "latitude": latitudes,
-        "longitude": longitudes,
-        "var_value": values_list,
-    }
-    return mydict
+    return {"response": "Dataset created successfully.", "netcdf_file": netcdf_file}
 
 
 def get_nuts_regions(
