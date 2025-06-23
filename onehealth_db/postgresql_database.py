@@ -855,8 +855,8 @@ def get_var_values_cartesian_for_download(
         )
 
     # Sort and deduplicate latitudes and longitudes
-    latitudes = sorted(set(gp.latitude for gp in grid_points))
-    longitudes = sorted(set(gp.longitude for gp in grid_points))
+    latitudes = sorted({gp.latitude for gp in grid_points})
+    longitudes = sorted({gp.longitude for gp in grid_points})
 
     # Create fast index maps for latitude and longitude
     lat_to_index = {lat: i for i, lat in enumerate(latitudes)}
