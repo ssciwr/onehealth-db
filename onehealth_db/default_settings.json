@@ -1,10 +1,23 @@
 {
     "adjust_longitude": true,
+    "adjust_longitude_vname": "longitude",
+    "adjust_longitude_fname": "adjlon",
     "convert_kelvin_to_celsius": true,
+    "convert_kelvin_to_celsius_vname": "t2m",
+    "convert_kelvin_to_celsius_fname": "celsius",
     "convert_m_to_mm_precipitation": true,
-    "downsample_grid": 0.5,
-    "truncate_year": 1950,
-    "rename": {
+    "convert_m_to_mm_precipitation_vname": "tp",
+    "convert_m_to_mm_precipitation_fname": "mm",
+    "resample_grid": true,
+    "resample_grid_vname": ["latitude", "longitude"],
+    "resample_degree": 0.5,
+    "resample_grid_fname": "deg_trim",
+    "truncate_date": true,
+    "truncate_date_from": "1950-01-01",
+    "truncate_date_vname": "time",
+    "unify_coords": true,
+    "unify_coords_fname": "unicoords",
+    "uni_coords": {
         "lat": "latitude",
         "lon": "longitude",
         "valid_time": "time"

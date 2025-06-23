@@ -22,7 +22,8 @@ def is_valid_settings(settings: dict) -> bool:
     try:
         jsonschema.validate(instance=settings, schema=setting_schema)
         return True
-    except jsonschema.ValidationError:
+    except jsonschema.ValidationError as e:
+        print(e)
         return False
 
 
@@ -44,25 +45,24 @@ def _update_new_settings(settings: dict, new_settings: dict) -> bool:
         # check if the new value is different from the old value
         # if the setting schema has more nested structures, deepdiff should be used
         # here just simple check
-        updatable = (
-            key in settings
-            and settings[key] != new_value
-            and is_valid_settings({key: new_settings[key]})
-        )
+        updatable = key in settings and settings[key] != new_value
         if key not in settings:
             warnings.warn(
                 "Key {} not found in the settings " "and will be skipped.".format(key),
                 UserWarning,
             )
-        if key in settings and not is_valid_settings({key: new_settings[key]}):
-            warnings.warn(
-                "Value of key {} is not valid in the settings "
-                "and will be skipped.".format(key),
-                UserWarning,
-            )
         if updatable:
+            old_value = settings[key]
             settings[key] = new_value
-            updated = True
+            if is_valid_settings(settings):
+                updated = True
+            else:
+                warnings.warn(
+                    "The new value for key {} is not valid in the settings. "
+                    "Reverting to the old value: {}".format(key, old_value),
+                    UserWarning,
+                )
+                settings[key] = old_value
 
     return updated
 

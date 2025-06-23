@@ -2,6 +2,7 @@ from typing import TypeVar, Union, Callable, Dict, Any
 import xarray as xr
 import numpy as np
 import warnings
+from pathlib import Path
 
 
 T = TypeVar("T", bound=Union[np.float64, xr.DataArray])
@@ -22,7 +23,7 @@ def convert_360_to_180(longitude: T) -> T:
 def adjust_longitude_360_to_180(
     dataset: xr.Dataset,
     limited_area: bool = False,
-    var_name: str = "longitude",
+    lon_name: str = "longitude",
 ) -> xr.Dataset:
     """Adjust longitude from 0-360 to -180-180.
 
@@ -30,20 +31,22 @@ def adjust_longitude_360_to_180(
         dataset (xr.Dataset): Dataset with longitude in 0-360 range.
         limited_area (bool): Flag indicating if the dataset is a limited area.
             Default is False.
-        var_name (str): Name of the longitude variable in the dataset.
+        lon_name (str): Name of the longitude variable in the dataset.
             Default is "longitude".
 
     Returns:
         xr.Dataset: Dataset with longitude adjusted to -180-180 range.
     """
+    if lon_name not in dataset.coords:
+        raise ValueError(f"Longitude coordinate '{lon_name}' not found in the dataset.")
     # record attributes
-    lon_attrs = dataset[var_name].attrs.copy()
+    lon_attrs = dataset[lon_name].attrs.copy()
 
     # adjust longitude
     dataset = dataset.assign_coords(
-        longitude=convert_360_to_180(dataset[var_name])
-    ).sortby(var_name)
-    dataset[var_name].attrs = lon_attrs
+        {lon_name: convert_360_to_180(dataset[lon_name])}
+    ).sortby(lon_name)
+    dataset[lon_name].attrs = lon_attrs
 
     # update attributes of data variables
     for var in dataset.data_vars.keys():
@@ -106,6 +109,8 @@ def convert_to_celsius_with_attributes(
     Returns:
         xr.Dataset: Dataset with temperature converted to Celsius.
     """
+    if var_name not in dataset.data_vars:
+        raise ValueError(f"Variable '{var_name}' not found in the dataset.")
     if not inplace:
         dataset = dataset.copy(deep=True)
 
@@ -189,6 +194,8 @@ def convert_m_to_mm_with_attributes(
     Returns:
         xr.Dataset: Dataset with precipitation converted to millimeters.
     """
+    if var_name not in dataset.data_vars:
+        raise ValueError(f"Variable '{var_name}' not found in the dataset.")
     if not inplace:
         dataset = dataset.copy(deep=True)
 
@@ -213,6 +220,8 @@ def convert_m_to_mm_with_attributes(
 def downsample_resolution(
     dataset: xr.Dataset,
     new_resolution: float = 0.5,
+    lat_name: str = "latitude",
+    lon_name: str = "longitude",
     agg_funcs: Dict[str, str] | None = None,
     agg_map: Dict[str, Callable[[Any], float]] | None = None,
 ) -> xr.Dataset:
@@ -221,6 +230,8 @@ def downsample_resolution(
     Args:
         dataset (xr.Dataset): Dataset to change resolution.
         new_resolution (float): New resolution in degrees. Default is 0.5.
+        lat_name (str): Name of the latitude coordinate. Default is "latitude".
+        lon_name (str): Name of the longitude coordinate. Default is "longitude".
         agg_funcs (Dict[str, str] | None): Aggregation functions for each variable.
             If None, default aggregation (i.e. mean) is used. Default is None.
         agg_map (Dict[str, Callable[[Any], float]] | None): Mapping of string
@@ -230,12 +241,14 @@ def downsample_resolution(
     Returns:
         xr.Dataset: Dataset with changed resolution.
     """
+    if lat_name not in dataset.coords or lon_name not in dataset.coords:
+        raise ValueError(
+            f"Coordinate names '{lat_name}' and '{lon_name}' are incorrect."
+        )
     if new_resolution <= 0:
         raise ValueError("New resolution must be a positive number.")
 
-    old_resolution = np.round(
-        (dataset["longitude"][1] - dataset["longitude"][0]).item(), 2
-    )
+    old_resolution = np.round((dataset[lon_name][1] - dataset[lon_name][0]).item(), 2)
 
     if new_resolution <= old_resolution:
         raise ValueError(
@@ -244,6 +257,10 @@ def downsample_resolution(
         )
 
     weight = int(np.ceil(new_resolution / old_resolution))
+    dim_kwargs = {
+        lon_name: weight,
+        lat_name: weight,
+    }
 
     if agg_map is None:
         agg_map = {
@@ -265,11 +282,7 @@ def downsample_resolution(
         func = agg_map.get(func_str, np.mean)
 
         # apply coarsening and reduction per variable
-        result[var] = (
-            dataset[var]
-            .coarsen(longitude=weight, latitude=weight, boundary="trim")
-            .reduce(func)
-        )
+        result[var] = dataset[var].coarsen(**dim_kwargs, boundary="trim").reduce(func)
         result[var].attrs = dataset[var].attrs.copy()
 
     # copy attributes of the dataset
@@ -282,6 +295,8 @@ def downsample_resolution(
 def align_lon_lat_with_popu_data(
     dataset: xr.Dataset,
     expected_longitude_max: np.float64 = np.float64(179.75),
+    lat_name: str = "latitude",
+    lon_name: str = "longitude",
 ) -> xr.Dataset:
     """Align longitude and latitude coordinates with population data\
     of the same resolution.
@@ -295,12 +310,19 @@ def align_lon_lat_with_popu_data(
         dataset (xr.Dataset): Dataset with longitude and latitude coordinates.
         expected_longitude_max (np.float64): Expected maximum longitude
             after adjustment. Default is np.float64(179.75).
+        lat_name (str): Name of the latitude coordinate. Default is "latitude".
+        lon_name (str): Name of the longitude coordinate. Default is "longitude".
 
     Returns:
         xr.Dataset: Dataset with adjusted longitude and latitude coordinates.
     """
-    old_longitude_min = dataset["longitude"].min().item()
-    old_longitude_max = dataset["longitude"].max().item()
+    if lat_name not in dataset.coords or lon_name not in dataset.coords:
+        raise ValueError(
+            f"Coordinate names '{lat_name}' and '{lon_name}' are incorrect."
+        )
+
+    old_longitude_min = dataset[lon_name].min().values
+    old_longitude_max = dataset[lon_name].max().values
 
     # TODO: find a more general solution
     special_case = (
@@ -314,8 +336,8 @@ def align_lon_lat_with_popu_data(
         # adjust coord values
         dataset = dataset.assign_coords(
             {
-                "longitude": (dataset["longitude"] + offset).round(2),
-                "latitude": (dataset["latitude"] + offset).round(2),
+                lon_name: (dataset[lon_name] + offset).round(2),
+                lat_name: (dataset[lat_name] + offset).round(2),
             }
         )
 
@@ -325,6 +347,8 @@ def align_lon_lat_with_popu_data(
 def upsample_resolution(
     dataset: xr.Dataset,
     new_resolution: float = 0.1,
+    lat_name: str = "latitude",
+    lon_name: str = "longitude",
     method_map: Dict[str, str] | None = None,
 ) -> xr.Dataset:
     """Upsample the resolution of a dataset.
@@ -332,6 +356,8 @@ def upsample_resolution(
     Args:
         dataset (xr.Dataset): Dataset to change resolution.
         new_resolution (float): New resolution in degrees. Default is 0.1.
+        lat_name (str): Name of the latitude coordinate. Default is "latitude".
+        lon_name (str): Name of the longitude coordinate. Default is "longitude".
         method_map (Dict[str, str] | None): Mapping of variable names to
             interpolation methods. If None, linear interpolation is used.
             Default is None.
@@ -339,12 +365,14 @@ def upsample_resolution(
     Returns:
         xr.Dataset: Dataset with changed resolution.
     """
+    if lat_name not in dataset.coords or lon_name not in dataset.coords:
+        raise ValueError(
+            f"Coordinate names '{lat_name}' and '{lon_name}' are incorrect."
+        )
     if new_resolution <= 0:
         raise ValueError("New resolution must be a positive number.")
 
-    old_resolution = np.round(
-        (dataset["longitude"][1] - dataset["longitude"][0]).item(), 2
-    )
+    old_resolution = np.round((dataset[lon_name][1] - dataset[lon_name][0]).item(), 2)
 
     if new_resolution >= old_resolution:
         raise ValueError(
@@ -353,18 +381,18 @@ def upsample_resolution(
         )
 
     lat_min, lat_max = (
-        dataset["latitude"].min().item(),
-        dataset["latitude"].max().item(),
+        dataset[lat_name].min().values,
+        dataset[lat_name].max().values,
     )
     lon_min, lon_max = (
-        dataset["longitude"].min().item(),
-        dataset["longitude"].max().item(),
+        dataset[lon_name].min().values,
+        dataset[lon_name].max().values,
     )
     updated_lat = np.arange(lat_min, lat_max + new_resolution, new_resolution)
     updated_lon = np.arange(lon_min, lon_max + new_resolution, new_resolution)
     updated_coords = {
-        "latitude": updated_lat,
-        "longitude": updated_lon,
+        lat_name: updated_lat,
+        lon_name: updated_lon,
     }
 
     if method_map is None:
@@ -404,7 +432,115 @@ def truncate_data_from_time(
     Returns:
         xr.Dataset: Dataset truncated from the specified start date.
     """
-    end_date = dataset[var_name].max().item()
+    end_date = dataset[var_name].max().values
     if isinstance(start_date, str):
         start_date = np.datetime64(start_date, "ns")
     return dataset.sel({var_name: slice(start_date, end_date)})
+
+
+def preprocess_data_file(
+    netcdf_file: Path,
+    settings: Dict[str, Any],
+) -> xr.Dataset:
+    """Preprocess the dataset based on provided settings.
+    Processed data is saved to the same directory with updated filename,
+    defined by the settings.
+
+    Args:
+        netcdf_file (Path): Path to the NetCDF file to preprocess.
+        settings (Dict[str, Any]): Settings for preprocessing.
+
+    Returns:
+        xr.Dataset: Preprocessed dataset.
+    """
+    if not netcdf_file or not netcdf_file.is_file():
+        raise ValueError("netcdf_file must be a valid file path.")
+
+    folder_path = netcdf_file.parent
+    file_name = netcdf_file.stem
+    file_name = file_name[: -len("_raw")] if file_name.endswith("_raw") else file_name
+    file_ext = netcdf_file.suffix
+
+    # get settings
+    unify_coords = settings.get("unify_coords", False)
+    unify_coords_fname = settings.get("unify_coords_fname")
+    uni_coords = settings.get("unify_coords")
+
+    adjust_longitude = settings.get("adjust_longitude", False)
+    adjust_longitude_vname = settings.get("adjust_longitude_vname")
+    adjust_longitude_fname = settings.get("adjust_longitude_fname")
+
+    convert_kelvin_to_celsius = settings.get("convert_kelvin_to_celsius", False)
+    convert_kelvin_to_celsius_vname = settings.get("convert_kelvin_to_celsius_vname")
+    convert_kelvin_to_celsius_fname = settings.get("convert_kelvin_to_celsius_fname")
+
+    convert_m_to_mm_precipitation = settings.get("convert_m_to_mm_precipitation", False)
+    convert_m_to_mm_vname = settings.get("convert_m_to_mm_vname")
+    convert_m_to_mm_fname = settings.get("convert_m_to_mm_fname")
+
+    resample_grid = settings.get("resample_grid", False)
+    resample_grid_vname = settings.get("resample_grid_vname")
+    lat_name = resample_grid_vname[0] if resample_grid_vname else None
+    lon_name = resample_grid_vname[1] if resample_grid_vname else None
+    resample_grid_fname = settings.get("resample_grid_fname")
+    resample_degree = settings.get("resample_degree")
+
+    truncate_date = settings.get("truncate_date", False)
+    truncate_date_from = settings.get("truncate_date_from")
+    truncate_date_vname = settings.get("truncate_date_vname")
+
+    with xr.open_dataset(netcdf_file) as dataset:
+        if unify_coords:
+            dataset = rename_coords(dataset, uni_coords)
+            file_name += f"_{unify_coords_fname}"
+        if adjust_longitude and adjust_longitude_vname in dataset.coords:
+            dataset = adjust_longitude_360_to_180(
+                dataset, lon_name=adjust_longitude_vname
+            )  # only consider full map for now, i.e. limited_area=False
+            file_name += f"_{adjust_longitude_fname}"
+        if (
+            convert_kelvin_to_celsius
+            and convert_kelvin_to_celsius_vname in dataset.data_vars
+        ):
+            dataset = convert_to_celsius_with_attributes(
+                dataset, var_name=convert_kelvin_to_celsius_vname
+            )
+            file_name += f"_{convert_kelvin_to_celsius_fname}"
+        if convert_m_to_mm_precipitation and convert_m_to_mm_vname in dataset.data_vars:
+            dataset = convert_m_to_mm_with_attributes(
+                dataset, var_name=convert_m_to_mm_vname
+            )
+            file_name += f"_{convert_m_to_mm_fname}"
+        if resample_grid and lat_name in dataset.coords and lon_name in dataset.coords:
+            old_resolution = np.round(
+                (dataset[lon_name][1] - dataset[lon_name][0]).item(), 2
+            )
+            if resample_degree > old_resolution:
+                dataset = downsample_resolution(
+                    dataset,
+                    new_resolution=resample_degree,
+                    lat_name=lat_name,
+                    lon_name=lon_name,
+                )  # arg_funcs and agg_map are omitted for simplicity
+            elif resample_degree < old_resolution:
+                dataset = upsample_resolution(
+                    dataset,
+                    new_resolution=resample_degree,
+                    lat_name=lat_name,
+                    lon_name=lon_name,
+                )  # method_map is omitted for simplicity
+            degree_str = str(resample_degree).replace(".", "")
+            file_name += f"_{degree_str}{resample_grid_fname}"
+        if truncate_date and truncate_date_vname in dataset.coords:
+            dataset = truncate_data_from_time(
+                dataset, start_date=truncate_date_from, var_name=truncate_date_vname
+            )
+            max_time = dataset[truncate_date_vname].max().values
+            max_year = np.datetime64(max_time, "Y")
+            file_name += f"_{truncate_date_from[:4]}_{max_year}"
+
+        # save the processed dataset
+        output_file = folder_path / f"{file_name}{file_ext}"
+        dataset.to_netcdf(output_file, mode="w", format="NETCDF4")
+        print(f"Processed dataset saved to: {output_file}")
+        return dataset

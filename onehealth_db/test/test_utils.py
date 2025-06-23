@@ -16,42 +16,130 @@ def get_files(dir_path: Path, name_phrase: str) -> list[Path]:
 
 
 def test_is_valid_settings():
-    settings = {"adjust_longitude": True}
+    settings = {"adjust_longitude": False}
     assert utils.is_valid_settings(settings) is True
     settings = {"adjust_longitude": "error"}
     assert utils.is_valid_settings(settings) is False
+    settings = {"adjust_longitude_vname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"adjust_longitude_vname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"adjust_longitude_fname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"adjust_longitude_fname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"adjust_longitude": True}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"adjust_longitude": True, "adjust_longitude_fname": "test"}
+    assert utils.is_valid_settings(settings) is False
 
-    settings = {"convert_kelvin_to_celsius": True}
+    settings = {"convert_kelvin_to_celsius": False}
     assert utils.is_valid_settings(settings) is True
     settings = {"convert_kelvin_to_celsius": "error"}
     assert utils.is_valid_settings(settings) is False
+    settings = {"convert_kelvin_to_celsius_vname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"convert_kelvin_to_celsius_vname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"convert_kelvin_to_celsius_fname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"convert_kelvin_to_celsius_fname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"convert_kelvin_to_celsius": True}
+    assert utils.is_valid_settings(settings) is False
+    settings = {
+        "convert_kelvin_to_celsius": True,
+        "convert_kelvin_to_celsius_fname": "test",
+    }
+    assert utils.is_valid_settings(settings) is False
 
-    settings = {"convert_m_to_mm_precipitation": True}
+    settings = {"convert_m_to_mm_precipitation": False}
     assert utils.is_valid_settings(settings) is True
     settings = {"convert_m_to_mm_precipitation": "error"}
     assert utils.is_valid_settings(settings) is False
+    settings = {"convert_m_to_mm_precipitation_vname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"convert_m_to_mm_precipitation_vname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"convert_m_to_mm_precipitation_fname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"convert_m_to_mm_precipitation_fname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"convert_m_to_mm_precipitation": True}
+    assert utils.is_valid_settings(settings) is False
+    settings = {
+        "convert_m_to_mm_precipitation": True,
+        "convert_m_to_mm_precipitation_fname": "test",
+    }
+    assert utils.is_valid_settings(settings) is False
 
-    settings = {"downsample_grid": 1}
+    settings = {"resample_grid": False}
     assert utils.is_valid_settings(settings) is True
-    settings = {"downsample_grid": 1.5}
+    settings = {"resample_grid": "error"}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"resample_degree": 1}
     assert utils.is_valid_settings(settings) is True
-    settings = {"downsample_grid": "error"}
+    settings = {"resample_degree": 1.5}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"resample_degree": "error"}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"resample_grid_vname": ["test1", "test2"]}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"resample_grid_vname": "test"}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"resample_grid_vname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"resample_grid_fname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"resample_grid_fname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"resample_grid": True}
+    assert utils.is_valid_settings(settings) is False
+    settings = {
+        "resample_grid": True,
+        "resample_grid_vname": ["test1", "test2"],
+        "resample_grid_fname": "test",
+    }
     assert utils.is_valid_settings(settings) is False
 
-    settings = {"truncate_year": 2025}
+    settings = {"truncate_date": False}
     assert utils.is_valid_settings(settings) is True
-    settings = {"truncate_year": 1.5}
+    settings = {"truncate_date": "error"}
     assert utils.is_valid_settings(settings) is False
-    settings = {"truncate_year": "error"}
+    settings = {"truncate_date_from": "2025-02-01"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"truncate_date_from": 1.5}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"truncate_date_from": 2025}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"truncate_date_vname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"truncate_date_vname": 1}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"truncate_date": True}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"truncate_date": True, "truncate_date_from": "2025-02-01"}
     assert utils.is_valid_settings(settings) is False
 
-    settings = {"rename": {"t2m": "temperature"}}
+    settings = {"unify_coords": False}
     assert utils.is_valid_settings(settings) is True
-    settings = {"rename": {"t2m": 1}}
+    settings = {"unify_coords": "error"}
     assert utils.is_valid_settings(settings) is False
-    settings = {"rename": {"t2m": "temperature", "error": 1}}
+    settings = {"unify_coords_fname": "test"}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"unify_coords_fname": 1}
     assert utils.is_valid_settings(settings) is False
-    settings = {"rename": "error"}
+    settings = {"uni_coords": {"t2m": "temperature"}}
+    assert utils.is_valid_settings(settings) is True
+    settings = {"runi_coordsname": {"t2m": 1}}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"uni_coords": {"t2m": "temperature", "error": 1}}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"uni_coords": "error"}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"unify_coords": True}
+    assert utils.is_valid_settings(settings) is False
+    settings = {"unify_coords": True, "unify_coords_fname": "test"}
     assert utils.is_valid_settings(settings) is False
 
 
@@ -72,14 +160,13 @@ def test_update_new_settings_not_updated():
     assert updated is False
 
     # invalid structure
-    with pytest.warns(UserWarning):
-        updated = utils._update_new_settings(
-            {"adjust_longitude": True}, {"adjust_longitude": 1}
-        )
+    updated = utils._update_new_settings(
+        {"adjust_longitude": True}, {"adjust_longitude": 1}
+    )
     assert updated is False
     with pytest.warns(UserWarning):
         updated = utils._update_new_settings(
-            {"rename": {"t2m": "temperature"}}, {"rename": {"t2m": 1}}
+            {"uni_coords": {"t2m": "temperature"}}, {"uni_coords": {"t2m": 1}}
         )
     assert updated is False
 
@@ -89,23 +176,27 @@ def test_update_new_settings_not_updated():
     )
     assert updated is False
     updated = utils._update_new_settings(
-        {"rename": {"t2m": "temperature"}}, {"rename": {"t2m": "temperature"}}
+        {"uni_coords": {"t2m": "temperature"}}, {"uni_coords": {"t2m": "temperature"}}
     )
     assert updated is False
 
 
 def test_update_new_settings_updated():
-    settings = {"adjust_longitude": False}
-    updated = utils._update_new_settings(settings, {"adjust_longitude": True})
+    settings = {
+        "adjust_longitude": True,
+        "adjust_longitude_vname": "test",
+        "adjust_longitude_fname": "test",
+    }
+    updated = utils._update_new_settings(settings, {"adjust_longitude": False})
     assert updated is True
-    assert settings.get("adjust_longitude") is True
+    assert settings.get("adjust_longitude") is False
 
-    settings = {"rename": {"t2m": "temperature"}}
+    settings = {"uni_coords": {"t2m": "temperature"}}
     updated = utils._update_new_settings(
-        settings, {"rename": {"t2m": "temp", "tcc": "cloud_cover"}}
+        settings, {"uni_coords": {"t2m": "temp", "tcc": "cloud_cover"}}
     )
     assert updated is True
-    assert settings.get("rename") == {"t2m": "temp", "tcc": "cloud_cover"}
+    assert settings.get("uni_coords") == {"t2m": "temp", "tcc": "cloud_cover"}
 
 
 def test_save_settings_to_file(tmpdir):
@@ -191,7 +282,14 @@ def test_get_settings_new_settings(tmp_path, tmpdir):
     # update settings from file
     setting_path = tmp_path / "settings.json"
     with open(setting_path, "w", newline="", encoding="utf-8") as f:
-        json.dump({"adjust_longitude": True}, f)
+        json.dump(
+            {
+                "adjust_longitude": True,
+                "adjust_longitude_vname": "test",
+                "adjust_longitude_fname": "test",
+            },
+            f,
+        )
     settings = utils.get_settings(setting_path)
     assert settings.get("adjust_longitude") is True
     settings = utils.get_settings(

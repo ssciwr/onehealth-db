@@ -98,6 +98,9 @@ def test_convert_360_to_180(get_data):
 
 
 def test_adjust_longitude_360_to_180(get_dataset):
+    # invalid lon name
+    with pytest.raises(ValueError):
+        preprocess.adjust_longitude_360_to_180(get_dataset, lon_name="invalid_lon")
     # full area
     adjusted_dataset = preprocess.adjust_longitude_360_to_180(
         get_dataset, limited_area=False
@@ -168,6 +171,9 @@ def test_convert_to_celsius(get_data):
 
 
 def test_convert_to_celsius_with_attributes_no_inplace(get_dataset):
+    # invalid var name
+    with pytest.raises(ValueError):
+        preprocess.convert_to_celsius_with_attributes(get_dataset, var_name="invalid")
     # convert to Celsius
     celsius_dataset = preprocess.convert_to_celsius_with_attributes(
         get_dataset, inplace=False
@@ -269,6 +275,9 @@ def test_convert_m_to_mm(get_data):
 
 
 def test_convert_m_to_mm_with_attributes_no_inplace(get_dataset):
+    # invalid var name
+    with pytest.raises(ValueError):
+        preprocess.convert_m_to_mm_with_attributes(get_dataset, var_name="invalid")
     # convert m to mm
     mm_dataset = preprocess.convert_m_to_mm_with_attributes(
         get_dataset, inplace=False, var_name="tp"
@@ -322,6 +331,20 @@ def test_downsample_resolution_invalid(get_dataset):
     with pytest.raises(ValueError):
         preprocess.downsample_resolution(
             get_dataset, new_resolution=1.0, agg_funcs="invalid"
+        )
+    with pytest.raises(ValueError):
+        preprocess.downsample_resolution(
+            get_dataset,
+            new_resolution=1.0,
+            lat_name="invalid_lat",
+            lon_name="longitude",
+        )
+    with pytest.raises(ValueError):
+        preprocess.downsample_resolution(
+            get_dataset,
+            new_resolution=1.0,
+            lat_name="latitude",
+            lon_name="invalid_lon",
         )
 
 
@@ -397,6 +420,13 @@ def test_downsample_resolution_custom(get_dataset):
     )
 
 
+def test_align_lon_lat_with_popu_data_invalid(get_dataset):
+    with pytest.raises(ValueError):
+        preprocess.align_lon_lat_with_popu_data(get_dataset, lat_name="invalid_lat")
+    with pytest.raises(ValueError):
+        preprocess.align_lon_lat_with_popu_data(get_dataset, lon_name="invalid_lon")
+
+
 def test_align_lon_lat_with_popu_data_special_case(get_dataset):
     tmp_lat = [89.8, -89.7]
     tmp_lon = [-179.7, -179.2, 179.8]
@@ -454,6 +484,10 @@ def test_upsample_resolution_invalid(get_dataset):
         preprocess.upsample_resolution(
             get_dataset, new_resolution=0.1, method_map="invalid"
         )
+    with pytest.raises(ValueError):
+        preprocess.upsample_resolution(get_dataset, lat_name="invalid_lat")
+    with pytest.raises(ValueError):
+        preprocess.upsample_resolution(get_dataset, lon_name="invalid_lon")
 
 
 def test_upsample_resolution_default(get_dataset):
@@ -561,3 +595,27 @@ def test_truncate_data_from_time(get_dataset):
     )
     assert len(truncated_dataset["t2m"].time) == 1
     assert truncated_dataset["t2m"].time.values[0] == np.datetime64("2025-01-01")
+
+
+def test_preprocess_data_file(tmp_path, get_dataset):
+    # save dataset to a temporary file
+    file_path = tmp_path / "test_data.nc"
+    get_dataset.to_netcdf(file_path)
+
+    settings = {
+        "truncate_date": True,
+        "truncate_date_from": "2025-01-01",
+        "truncate_date_vname": "time",
+    }
+    # preprocess the data file
+    preprocessed_dataset = preprocess.preprocess_data_file(file_path, settings=settings)
+
+    # check if the time dimension is reduced
+    assert len(preprocessed_dataset["t2m"].time) == 1
+    assert len(preprocessed_dataset["tp"].time) == 1
+
+    # check if there is new file created
+    assert (tmp_path / "test_data_2025_2025.nc").exists()
+    with xr.open_dataset(tmp_path / "test_data_2025_2025.nc") as ds:
+        assert len(ds["t2m"].time) == 1
+        assert len(ds["tp"].time) == 1
