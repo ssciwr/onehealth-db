@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 T = TypeVar("T", bound=Union[np.float64, xr.DataArray])
+warn_positive_resolution = "New resolution must be a positive number."
 
 
 def convert_360_to_180(longitude: T) -> T:
@@ -246,7 +247,7 @@ def downsample_resolution(
             f"Coordinate names '{lat_name}' and '{lon_name}' are incorrect."
         )
     if new_resolution <= 0:
-        raise ValueError("New resolution must be a positive number.")
+        raise ValueError(warn_positive_resolution)
 
     old_resolution = np.round((dataset[lon_name][1] - dataset[lon_name][0]).item(), 2)
 
@@ -370,7 +371,7 @@ def upsample_resolution(
             f"Coordinate names '{lat_name}' and '{lon_name}' are incorrect."
         )
     if new_resolution <= 0:
-        raise ValueError("New resolution must be a positive number.")
+        raise ValueError(warn_positive_resolution)
 
     old_resolution = np.round((dataset[lon_name][1] - dataset[lon_name][0]).item(), 2)
 
@@ -451,7 +452,7 @@ def resample_resolution(
         )
 
     if new_resolution <= 0:
-        raise ValueError("New resolution must be a positive number.")
+        raise ValueError(warn_positive_resolution)
 
     old_resolution = np.round((dataset[lon_name][1] - dataset[lon_name][0]).item(), 2)
 

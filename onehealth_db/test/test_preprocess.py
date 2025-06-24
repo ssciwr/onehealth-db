@@ -854,5 +854,5 @@ def test_preprocess_data_file(tmp_path, get_dataset):
     file_path = tmp_path / "test_data_raw.nc"
     get_dataset.to_netcdf(file_path)
 
-    preprocessed_dataset = preprocess.preprocess_data_file(file_path, settings)
+    _ = preprocess.preprocess_data_file(file_path, settings)
     assert (tmp_path / "test_data_2025_2025.nc").exists()
