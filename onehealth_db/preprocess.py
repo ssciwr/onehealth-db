@@ -570,10 +570,12 @@ def _apply_preprocessing(
     truncate_date_vname = settings.get("truncate_date_vname")
 
     if unify_coords:
+        print("Renaming coordinates to unify them across datasets...")
         dataset = rename_coords(dataset, uni_coords)
         file_name_base += f"_{unify_coords_fname}"
 
     if adjust_longitude and adjust_longitude_vname in dataset.coords:
+        print("Adjusting longitude from 0-360 to -180-180...")
         dataset = adjust_longitude_360_to_180(
             dataset, lon_name=adjust_longitude_vname
         )  # only consider full map for now, i.e. limited_area=False
@@ -583,6 +585,7 @@ def _apply_preprocessing(
         convert_kelvin_to_celsius
         and convert_kelvin_to_celsius_vname in dataset.data_vars
     ):
+        print("Converting temperature from Kelvin to Celsius...")
         dataset = convert_to_celsius_with_attributes(
             dataset, var_name=convert_kelvin_to_celsius_vname
         )
@@ -592,12 +595,14 @@ def _apply_preprocessing(
         convert_m_to_mm_precipitation
         and convert_m_to_mm_precipitation_vname in dataset.data_vars
     ):
+        print("Converting precipitation from meters to millimeters...")
         dataset = convert_m_to_mm_with_attributes(
             dataset, var_name=convert_m_to_mm_precipitation_vname
         )
         file_name_base += f"_{convert_m_to_mm_precipitation_fname}"
 
     if resample_grid and lat_name in dataset.coords and lon_name in dataset.coords:
+        print("Resampling grid to a new resolution...")
         dataset = resample_resolution(
             dataset,
             new_resolution=resample_degree,
@@ -608,6 +613,7 @@ def _apply_preprocessing(
         file_name_base += f"_{degree_str}{resample_grid_fname}"
 
     if truncate_date and truncate_date_vname in dataset.coords:
+        print("Truncating data from a specific start date...")
         dataset = truncate_data_from_time(
             dataset, start_date=truncate_date_from, var_name=truncate_date_vname
         )
