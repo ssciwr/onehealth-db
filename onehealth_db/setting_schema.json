@@ -77,7 +77,7 @@
         },
         "truncate_date_from": {
             "type": "string",
-            "default": "1950-01-01",
+            "default": "2020-01-01",
             "description": "Date in YYYY-MM-DD to truncate the time series from."
         },
         "truncate_date_vname": {
