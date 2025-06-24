@@ -501,10 +501,10 @@ def test_upsample_resolution_default(get_dataset):
     # check if the coordinates are adjusted
     assert np.allclose(
         upsampled_dataset["t2m"].latitude.values, np.arange(0.0, 0.6, 0.1)
-    )  # example for latitude
+    )
     assert np.allclose(
         upsampled_dataset["t2m"].longitude.values, np.arange(0.0, 1.1, 0.1)
-    )  # example for longitude
+    )
 
     # check interpolated values
     t2m_interp = upsampled_dataset["t2m"].sel(
@@ -559,6 +559,48 @@ def test_upsample_resolution_custom(get_dataset):
     assert np.allclose(tp_interp.values, tp_expected.values)
 
 
+def test_resample_resolution_invalid(get_dataset):
+    with pytest.raises(ValueError):
+        preprocess.resample_resolution(get_dataset, new_resolution=-0.5)
+    with pytest.raises(ValueError):
+        preprocess.resample_resolution(get_dataset, lat_name="invalid_lat")
+    with pytest.raises(ValueError):
+        preprocess.resample_resolution(get_dataset, lon_name="invalid_lon")
+
+
+def test_resample_resolution_default(get_dataset):
+    # downsample resolution
+    resampled_dataset = preprocess.resample_resolution(get_dataset, new_resolution=1.0)
+
+    # check if the coordinates are adjusted
+    assert np.allclose(resampled_dataset["tp"].latitude.values, [0.25])
+    assert np.allclose(resampled_dataset["tp"].longitude.values, [0.25])
+
+    # check aggregated values
+    assert np.allclose(
+        resampled_dataset["tp"].values.flatten(),
+        np.mean(get_dataset["tp"][:, :, :2], axis=(1, 2)),
+    )
+
+    # upsample resolution
+    resampled_dataset = preprocess.resample_resolution(get_dataset, new_resolution=0.1)
+
+    # check if the coordinates are adjusted
+    assert np.allclose(
+        resampled_dataset["tp"].latitude.values, np.arange(0.0, 0.6, 0.1)
+    )
+    assert np.allclose(
+        resampled_dataset["tp"].longitude.values, np.arange(0.0, 1.1, 0.1)
+    )
+
+    # check interpolated values
+    tp_interp = resampled_dataset["tp"].sel(
+        latitude=0.1, longitude=0.1, method="nearest"
+    )
+    tp_expected = get_dataset["tp"].interp(latitude=0.1, longitude=0.1, method="linear")
+    assert np.allclose(tp_interp.values, tp_expected.values)
+
+
 def test_truncate_data_from_time(get_dataset):
     # truncate data from time
     truncated_dataset = preprocess.truncate_data_from_time(
@@ -597,6 +639,193 @@ def test_truncate_data_from_time(get_dataset):
     assert truncated_dataset["t2m"].time.values[0] == np.datetime64("2025-01-01")
 
 
+def test_replace_decimal_point():
+    assert preprocess._replace_decimal_point(1.0) == "1p0"
+    assert preprocess._replace_decimal_point(1.234) == "1p234"
+    assert preprocess._replace_decimal_point(0.1) == "01"
+
+    with pytest.raises(ValueError):
+        preprocess._replace_decimal_point("1.0")
+
+
+def test_apply_preprocessing_unify_coords(get_dataset):
+    fname_base = "test_data"
+
+    setttings = {
+        "unify_coords": True,
+        "unify_coords_fname": "unicoords",
+        "uni_coords": {"latitude": "lat", "longitude": "lon", "time": "valid_time"},
+    }
+    # preprocess the data file
+    preprocessed_dataset, updated_fname = preprocess._apply_preprocessing(
+        get_dataset, fname_base, settings=setttings
+    )
+    # check if the coordinates are renamed
+    assert "lat" in preprocessed_dataset.coords
+    assert "lon" in preprocessed_dataset.coords
+    assert "valid_time" in preprocessed_dataset.coords
+    # check if file name is updated
+    assert updated_fname == f"{fname_base}_unicoords"
+
+
+def test_apply_preprocessing_adjust_longitude(get_dataset):
+    fname_base = "test_data"
+
+    settings = {
+        "adjust_longitude": True,
+        "adjust_longitude_fname": "adjlon",
+        "adjust_longitude_vname": "longitude",
+    }
+    # preprocess the data file
+    preprocessed_dataset, updated_fname = preprocess._apply_preprocessing(
+        get_dataset, fname_base, settings=settings
+    )
+
+    # check if the longitude is adjusted
+    assert np.allclose(
+        preprocessed_dataset["tp"].longitude.values,
+        (get_dataset["tp"].longitude + 180) % 360 - 180,
+    )
+
+    # check if file name is updated
+    assert updated_fname == f"{fname_base}_adjlon"
+
+
+def test_apply_preprocessing_convert_to_celsius(get_dataset):
+    fname_base = "test_data"
+
+    settings = {
+        "convert_kelvin_to_celsius": True,
+        "convert_kelvin_to_celsius_vname": "t2m",
+        "convert_kelvin_to_celsius_fname": "celsius",
+    }
+    # preprocess the data file
+    preprocessed_dataset, updated_fname = preprocess._apply_preprocessing(
+        get_dataset, fname_base, settings=settings
+    )
+
+    # check if the temperature is converted to Celsius
+    expected_t2m = get_dataset["t2m"] - 273.15
+    assert np.allclose(preprocessed_dataset["t2m"].values, expected_t2m.values)
+
+    # check if file name is updated
+    assert updated_fname == f"{fname_base}_celsius"
+
+
+def test_apply_preprocessing_convert_m_to_mm(get_dataset):
+    fname_base = "test_data"
+
+    settings = {
+        "convert_m_to_mm_precipitation": True,
+        "convert_m_to_mm_precipitation_vname": "tp",
+        "convert_m_to_mm_precipitation_fname": "mm",
+    }
+    # preprocess the data file
+    preprocessed_dataset, updated_fname = preprocess._apply_preprocessing(
+        get_dataset, fname_base, settings=settings
+    )
+
+    # check if the precipitation is converted to mm
+    expected_tp = get_dataset["tp"] * 1000.0
+    assert np.allclose(preprocessed_dataset["tp"].values, expected_tp.values)
+
+    # check if file name is updated
+    assert updated_fname == f"{fname_base}_mm"
+
+
+def test_apply_preprocessing_downsample(get_dataset):
+    fname_base = "test_data"
+
+    settings = {
+        "resample_grid": True,
+        "resample_grid_vname": ["latitude", "longitude"],
+        "resample_degree": 1.0,
+        "resample_grid_fname": "deg_trim",
+    }
+    # preprocess the data file
+    preprocessed_dataset, updated_fname = preprocess._apply_preprocessing(
+        get_dataset, fname_base, settings=settings
+    )
+
+    # check if the dimensions are reduced
+    assert np.allclose(preprocessed_dataset["t2m"].latitude.values, [0.25])
+    assert np.allclose(preprocessed_dataset["t2m"].longitude.values, [0.25])
+
+    # check if file name is updated
+    assert updated_fname == f"{fname_base}_1p0deg_trim"
+
+
+def test_apply_preprocessing_upsample(get_dataset):
+    fname_base = "test_data"
+
+    settings = {
+        "resample_grid": True,
+        "resample_grid_vname": ["latitude", "longitude"],
+        "resample_degree": 0.1,
+        "resample_grid_fname": "deg_trim",
+    }
+    # preprocess the data file
+    preprocessed_dataset, updated_fname = preprocess._apply_preprocessing(
+        get_dataset, fname_base, settings=settings
+    )
+
+    # check if the dimensions are increased
+    assert np.allclose(
+        preprocessed_dataset["t2m"].latitude.values, np.arange(0.0, 0.6, 0.1)
+    )
+    assert np.allclose(
+        preprocessed_dataset["t2m"].longitude.values, np.arange(0.0, 1.1, 0.1)
+    )
+
+    # check if file name is updated
+    assert updated_fname == f"{fname_base}_01deg_trim"
+
+
+def test_apply_preprocessing_truncate(get_dataset):
+    fname_base = "test_data"
+
+    settings = {
+        "truncate_date": True,
+        "truncate_date_from": "2025-01-01",
+        "truncate_date_vname": "time",
+    }
+    # preprocess the data file
+    preprocessed_dataset, updated_fname = preprocess._apply_preprocessing(
+        get_dataset, fname_base, settings=settings
+    )
+
+    # check if the time dimension is reduced
+    assert len(preprocessed_dataset["t2m"].time) == 1
+    assert len(preprocessed_dataset["tp"].time) == 1
+
+    # check if file name is updated
+    assert updated_fname == f"{fname_base}_2025_2025"
+
+
+def test_preprocess_data_file_invalid(tmp_path):
+    # invalid file path
+    with pytest.raises(ValueError):
+        preprocess.preprocess_data_file("", settings={"test": "test"})
+
+    # non-existing file
+    with pytest.raises(ValueError):
+        preprocess.preprocess_data_file(
+            tmp_path / "invalid.nc", settings={"test": "test"}
+        )
+
+    # emtpy file
+    empty_file_path = tmp_path / "empty.nc"
+    empty_file_path.touch()  # create an empty file
+    with pytest.raises(ValueError):
+        preprocess.preprocess_data_file(empty_file_path, settings={"test": "test"})
+
+    # empty settings
+    with open(tmp_path / "test_data.nc", "w") as f:
+        f.write("This is a test file.")
+    with pytest.raises(ValueError):
+        preprocess.preprocess_data_file(tmp_path / "test_data.nc", settings={})
+
+
 def test_preprocess_data_file(tmp_path, get_dataset):
     # save dataset to a temporary file
     file_path = tmp_path / "test_data.nc"
@@ -619,3 +848,11 @@ def test_preprocess_data_file(tmp_path, get_dataset):
     with xr.open_dataset(tmp_path / "test_data_2025_2025.nc") as ds:
         assert len(ds["t2m"].time) == 1
         assert len(ds["tp"].time) == 1
+
+    # check if file name ends with raw
+    (tmp_path / "test_data_2025_2025.nc").unlink()
+    file_path = tmp_path / "test_data_raw.nc"
+    get_dataset.to_netcdf(file_path)
+
+    preprocessed_dataset = preprocess.preprocess_data_file(file_path, settings)
+    assert (tmp_path / "test_data_2025_2025.nc").exists()

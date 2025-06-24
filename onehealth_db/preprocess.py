@@ -1,4 +1,4 @@
-from typing import TypeVar, Union, Callable, Dict, Any
+from typing import TypeVar, Union, Callable, Dict, Any, Tuple
 import xarray as xr
 import numpy as np
 import warnings
@@ -416,6 +416,70 @@ def upsample_resolution(
     return result_dataset
 
 
+def resample_resolution(
+    dataset: xr.Dataset,
+    new_resolution: float = 0.5,
+    lat_name: str = "latitude",
+    lon_name: str = "longitude",
+    agg_funcs: Dict[str, str] | None = None,
+    agg_map: Dict[str, Callable[[Any], float]] | None = None,
+    expected_longitude_max: np.float64 = np.float64(179.75),
+    method_map: Dict[str, str] | None = None,
+) -> xr.Dataset:
+    """Resample the grid of a dataset to a new resolution.
+
+    Args:
+        dataset (xr.Dataset): Dataset to resample.
+        new_resolution (float): New resolution in degrees. Default is 0.5.
+        lat_name (str): Name of the latitude coordinate. Default is "latitude".
+        lon_name (str): Name of the longitude coordinate. Default is "longitude".
+        agg_funcs (Dict[str, str] | None): Aggregation functions for each variable.
+            If None, default aggregation (i.e. mean) is used. Default is None.
+        agg_map (Dict[str, Callable[[Any], float]] | None): Mapping of string
+            to aggregation functions. If None, default mapping is used. Default is None.
+        expected_longitude_max (np.float64): Expected maximum longitude
+            after adjustment. Default is np.float64(179.75).
+        method_map (Dict[str, str] | None): Mapping of variable names to
+            interpolation methods. If None, linear interpolation is used. Default is None.
+
+    Returns:
+        xr.Dataset: Resampled dataset with changed resolution.
+    """
+    if lat_name not in dataset.coords or lon_name not in dataset.coords:
+        raise ValueError(
+            f"Coordinate names '{lat_name}' and '{lon_name}' are incorrect."
+        )
+
+    if new_resolution <= 0:
+        raise ValueError("New resolution must be a positive number.")
+
+    old_resolution = np.round((dataset[lon_name][1] - dataset[lon_name][0]).item(), 2)
+
+    if new_resolution > old_resolution:
+        dataset = downsample_resolution(
+            dataset,
+            new_resolution=new_resolution,
+            lat_name=lat_name,
+            lon_name=lon_name,
+            agg_funcs=agg_funcs,
+            agg_map=agg_map,
+        )
+        return align_lon_lat_with_popu_data(
+            dataset,
+            expected_longitude_max=expected_longitude_max,
+            lat_name=lat_name,
+            lon_name=lon_name,
+        )
+
+    return upsample_resolution(
+        dataset,
+        new_resolution=new_resolution,
+        lat_name=lat_name,
+        lon_name=lon_name,
+        method_map=method_map,
+    )
+
+
 def truncate_data_from_time(
     dataset: xr.Dataset,
     start_date: Union[str, np.datetime64],
@@ -438,6 +502,121 @@ def truncate_data_from_time(
     return dataset.sel({var_name: slice(start_date, end_date)})
 
 
+def _replace_decimal_point(degree: float) -> str:
+    """Replace the decimal point in a degree string with 'p'
+    if the degree is greater than or equal to 1.0,
+    or remove it if the degree is less than 1.0.
+
+    Args:
+        degree (float): Degree value to convert.
+
+    Returns:
+        str: String representation of the degree without decimal point.
+    """
+    if not isinstance(degree, (float)):
+        raise ValueError("Resolution degree must be a float.")
+    if degree < 1.0:
+        return str(degree).replace(".", "")
+    else:
+        return str(degree).replace(".", "p")
+
+
+def _apply_preprocessing(
+    dataset: xr.Dataset,
+    file_name_base: str,
+    settings: Dict[str, Any],
+) -> Tuple[xr.Dataset, str]:
+    """Apply preprocessing steps to the dataset based on settings.
+
+    Args:
+        dataset (xr.Dataset): Dataset to preprocess.
+        file_name_base (str): Base name for the output file.
+        settings (Dict[str, Any]): Settings for preprocessing.
+
+    Returns:
+        Tuple[xr.Dataset, str]: Preprocessed dataset and updated file name.
+    """
+    # get settings
+    unify_coords = settings.get("unify_coords", False)
+    unify_coords_fname = settings.get("unify_coords_fname")
+    uni_coords = settings.get("uni_coords")
+
+    adjust_longitude = settings.get("adjust_longitude", False)
+    adjust_longitude_vname = settings.get("adjust_longitude_vname")
+    adjust_longitude_fname = settings.get("adjust_longitude_fname")
+
+    convert_kelvin_to_celsius = settings.get("convert_kelvin_to_celsius", False)
+    convert_kelvin_to_celsius_vname = settings.get("convert_kelvin_to_celsius_vname")
+    convert_kelvin_to_celsius_fname = settings.get("convert_kelvin_to_celsius_fname")
+
+    convert_m_to_mm_precipitation = settings.get("convert_m_to_mm_precipitation", False)
+    convert_m_to_mm_precipitation_vname = settings.get(
+        "convert_m_to_mm_precipitation_vname"
+    )
+    convert_m_to_mm_precipitation_fname = settings.get(
+        "convert_m_to_mm_precipitation_fname"
+    )
+
+    resample_grid = settings.get("resample_grid", False)
+    resample_grid_vname = settings.get("resample_grid_vname")
+    lat_name = resample_grid_vname[0] if resample_grid_vname else None
+    lon_name = resample_grid_vname[1] if resample_grid_vname else None
+    resample_grid_fname = settings.get("resample_grid_fname")
+    resample_degree = settings.get("resample_degree")
+
+    truncate_date = settings.get("truncate_date", False)
+    truncate_date_from = settings.get("truncate_date_from")
+    truncate_date_vname = settings.get("truncate_date_vname")
+
+    if unify_coords:
+        dataset = rename_coords(dataset, uni_coords)
+        file_name_base += f"_{unify_coords_fname}"
+
+    if adjust_longitude and adjust_longitude_vname in dataset.coords:
+        dataset = adjust_longitude_360_to_180(
+            dataset, lon_name=adjust_longitude_vname
+        )  # only consider full map for now, i.e. limited_area=False
+        file_name_base += f"_{adjust_longitude_fname}"
+
+    if (
+        convert_kelvin_to_celsius
+        and convert_kelvin_to_celsius_vname in dataset.data_vars
+    ):
+        dataset = convert_to_celsius_with_attributes(
+            dataset, var_name=convert_kelvin_to_celsius_vname
+        )
+        file_name_base += f"_{convert_kelvin_to_celsius_fname}"
+
+    if (
+        convert_m_to_mm_precipitation
+        and convert_m_to_mm_precipitation_vname in dataset.data_vars
+    ):
+        dataset = convert_m_to_mm_with_attributes(
+            dataset, var_name=convert_m_to_mm_precipitation_vname
+        )
+        file_name_base += f"_{convert_m_to_mm_precipitation_fname}"
+
+    if resample_grid and lat_name in dataset.coords and lon_name in dataset.coords:
+        dataset = resample_resolution(
+            dataset,
+            new_resolution=resample_degree,
+            lat_name=lat_name,
+            lon_name=lon_name,
+        )  # agg_funcs, agg_map, and method_map are omitted for simplicity
+        degree_str = _replace_decimal_point(resample_degree)
+        file_name_base += f"_{degree_str}{resample_grid_fname}"
+
+    if truncate_date and truncate_date_vname in dataset.coords:
+        dataset = truncate_data_from_time(
+            dataset, start_date=truncate_date_from, var_name=truncate_date_vname
+        )
+        max_time = dataset[truncate_date_vname].max().values
+        max_year = np.datetime64(max_time, "Y")
+        file_name_base += f"_{truncate_date_from[:4]}_{max_year}"
+
+    return dataset, file_name_base
+
+
 def preprocess_data_file(
     netcdf_file: Path,
     settings: Dict[str, Any],
@@ -453,94 +632,24 @@ def preprocess_data_file(
     Returns:
         xr.Dataset: Preprocessed dataset.
     """
-    if not netcdf_file or not netcdf_file.is_file():
+    invalid_file = (
+        not netcdf_file or not netcdf_file.exists() or netcdf_file.stat().st_size == 0
+    )
+    if invalid_file:
         raise ValueError("netcdf_file must be a valid file path.")
+
+    if not settings:
+        raise ValueError("settings must be a non-empty dictionary.")
 
     folder_path = netcdf_file.parent
     file_name = netcdf_file.stem
     file_name = file_name[: -len("_raw")] if file_name.endswith("_raw") else file_name
     file_ext = netcdf_file.suffix
 
-    # get settings
-    unify_coords = settings.get("unify_coords", False)
-    unify_coords_fname = settings.get("unify_coords_fname")
-    uni_coords = settings.get("unify_coords")
-
-    adjust_longitude = settings.get("adjust_longitude", False)
-    adjust_longitude_vname = settings.get("adjust_longitude_vname")
-    adjust_longitude_fname = settings.get("adjust_longitude_fname")
-
-    convert_kelvin_to_celsius = settings.get("convert_kelvin_to_celsius", False)
-    convert_kelvin_to_celsius_vname = settings.get("convert_kelvin_to_celsius_vname")
-    convert_kelvin_to_celsius_fname = settings.get("convert_kelvin_to_celsius_fname")
-
-    convert_m_to_mm_precipitation = settings.get("convert_m_to_mm_precipitation", False)
-    convert_m_to_mm_vname = settings.get("convert_m_to_mm_vname")
-    convert_m_to_mm_fname = settings.get("convert_m_to_mm_fname")
-
-    resample_grid = settings.get("resample_grid", False)
-    resample_grid_vname = settings.get("resample_grid_vname")
-    lat_name = resample_grid_vname[0] if resample_grid_vname else None
-    lon_name = resample_grid_vname[1] if resample_grid_vname else None
-    resample_grid_fname = settings.get("resample_grid_fname")
-    resample_degree = settings.get("resample_degree")
-
-    truncate_date = settings.get("truncate_date", False)
-    truncate_date_from = settings.get("truncate_date_from")
-    truncate_date_vname = settings.get("truncate_date_vname")
-
     with xr.open_dataset(netcdf_file) as dataset:
-        if unify_coords:
-            dataset = rename_coords(dataset, uni_coords)
-            file_name += f"_{unify_coords_fname}"
-        if adjust_longitude and adjust_longitude_vname in dataset.coords:
-            dataset = adjust_longitude_360_to_180(
-                dataset, lon_name=adjust_longitude_vname
-            )  # only consider full map for now, i.e. limited_area=False
-            file_name += f"_{adjust_longitude_fname}"
-        if (
-            convert_kelvin_to_celsius
-            and convert_kelvin_to_celsius_vname in dataset.data_vars
-        ):
-            dataset = convert_to_celsius_with_attributes(
-                dataset, var_name=convert_kelvin_to_celsius_vname
-            )
-            file_name += f"_{convert_kelvin_to_celsius_fname}"
-        if convert_m_to_mm_precipitation and convert_m_to_mm_vname in dataset.data_vars:
-            dataset = convert_m_to_mm_with_attributes(
-                dataset, var_name=convert_m_to_mm_vname
-            )
-            file_name += f"_{convert_m_to_mm_fname}"
-        if resample_grid and lat_name in dataset.coords and lon_name in dataset.coords:
-            old_resolution = np.round(
-                (dataset[lon_name][1] - dataset[lon_name][0]).item(), 2
-            )
-            if resample_degree > old_resolution:
-                dataset = downsample_resolution(
-                    dataset,
-                    new_resolution=resample_degree,
-                    lat_name=lat_name,
-                    lon_name=lon_name,
-                )  # arg_funcs and agg_map are omitted for simplicity
-            elif resample_degree < old_resolution:
-                dataset = upsample_resolution(
-                    dataset,
-                    new_resolution=resample_degree,
-                    lat_name=lat_name,
-                    lon_name=lon_name,
-                )  # method_map is omitted for simplicity
-            degree_str = str(resample_degree).replace(".", "")
-            file_name += f"_{degree_str}{resample_grid_fname}"
-        if truncate_date and truncate_date_vname in dataset.coords:
-            dataset = truncate_data_from_time(
-                dataset, start_date=truncate_date_from, var_name=truncate_date_vname
-            )
-            max_time = dataset[truncate_date_vname].max().values
-            max_year = np.datetime64(max_time, "Y")
-            file_name += f"_{truncate_date_from[:4]}_{max_year}"
-
+        dataset, file_name_base = _apply_preprocessing(dataset, file_name, settings)
         # save the processed dataset
-        output_file = folder_path / f"{file_name}{file_ext}"
+        output_file = folder_path / f"{file_name_base}{file_ext}"
         dataset.to_netcdf(output_file, mode="w", format="NETCDF4")
         print(f"Processed dataset saved to: {output_file}")
         return dataset
