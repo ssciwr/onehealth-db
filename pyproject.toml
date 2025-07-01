@@ -36,6 +36,7 @@ dependencies = [
   "testcontainers",
   "fastapi[standard]",
   "uvicorn",
+  "scipy",
 ]
 
 [project.optional-dependencies]
