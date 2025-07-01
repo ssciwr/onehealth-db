@@ -712,6 +712,25 @@ def get_var_types(
     return session.query(VarType).filter(VarType.name.in_(var_names)).all()
 
 
+def sort_grid_points_get_ids(
+    grid_points: List[GridPoint],
+) -> tuple[dict, set[float], set[float]]:
+    # Sort and deduplicate latitudes and longitudes
+    latitudes = sorted({gp.latitude for gp in grid_points})
+    longitudes = sorted({gp.longitude for gp in grid_points})
+
+    # Create fast index maps for latitude and longitude
+    lat_to_index = {lat: i for i, lat in enumerate(latitudes)}
+    lon_to_index = {lon: i for i, lon in enumerate(longitudes)}
+
+    # Map grid_id to (lat_index, lon_index)
+    grid_ids = {
+        gp.id: (lat_to_index[gp.latitude], lon_to_index[gp.longitude])
+        for gp in grid_points
+    }
+    return grid_ids, latitudes, longitudes
+
+
 def get_var_values_cartesian(
     session: Session,
     start_time_point: Tuple[int, int],
@@ -741,29 +760,21 @@ def get_var_values_cartesian(
         )
 
     # create a list of time points and their ids
-
     time_values_datetime = [
         datetime.date(year=tp.year, month=tp.month, day=1) for tp in time_points
     ]
     time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
 
-    # get the grid points and their ids
+    # get all the grid points and their ids
     grid_points = session.query(GridPoint).all()
-
+    if not grid_points:
+        print("No grid points found in the database.")
+        raise HTTPException(
+            status_code=400, detail="No grid points found in the database."
+        )
     # Sort and deduplicate latitudes and longitudes
-    latitudes = sorted({gp.latitude for gp in grid_points})
-    longitudes = sorted({gp.longitude for gp in grid_points})
+    grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
 
-    # Create fast index maps for latitude and longitude
-    lat_to_index = {lat: i for i, lat in enumerate(latitudes)}
-    lon_to_index = {lon: i for i, lon in enumerate(longitudes)}
-
-    # Map grid_id to (lat_index, lon_index)
-    grid_ids = {
-        gp.id: (lat_to_index[gp.latitude], lon_to_index[gp.longitude])
-        for gp in grid_points
-    }
-    #
     # get variable types and their ids
     var_types = get_var_types(session, var_names)
     if not var_types:
@@ -854,18 +865,7 @@ def get_var_values_cartesian_for_download(
         )
 
     # Sort and deduplicate latitudes and longitudes
-    latitudes = sorted({gp.latitude for gp in grid_points})
-    longitudes = sorted({gp.longitude for gp in grid_points})
-
-    # Create fast index maps for latitude and longitude
-    lat_to_index = {lat: i for i, lat in enumerate(latitudes)}
-    lon_to_index = {lon: i for i, lon in enumerate(longitudes)}
-
-    # Map grid_id to (lat_index, lon_index)
-    grid_ids = {
-        gp.id: (lat_to_index[gp.latitude], lon_to_index[gp.longitude])
-        for gp in grid_points
-    }
+    grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
 
     # get variable types and their ids
     var_types = get_var_types(session, var_names)

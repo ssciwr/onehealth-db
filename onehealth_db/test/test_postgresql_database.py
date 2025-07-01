@@ -748,6 +748,17 @@ def test_get_var_types(get_session):
     get_session.commit()
 
 
+def test_sort_grid_points_get_ids(get_session, get_dataset, insert_data):
+    grid_points = get_session.query(postdb.GridPoint).all()
+    grid_ids, latitudes, longitudes = postdb.sort_grid_points_get_ids(grid_points)
+    assert len(grid_ids) == 6  # 2 latitudes * 3 longitudes
+    assert latitudes == [10.0, 11.0]
+    assert longitudes == [10.0, 11.0, 12.0]
+    # check if the ids are correct
+    assert grid_ids[1] == (0, 0)
+    assert grid_ids[4] == (1, 0)
+
+
 def test_get_var_values_cartesian(get_dataset, insert_data):
     # test the function
     # normal case
@@ -809,7 +820,7 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
         )
 
 
-def test_get_var_values_cartesian_dowload(get_dataset, insert_data, tmp_path):
+def test_get_var_values_cartesian_download(get_dataset, insert_data, tmp_path):
     # test the function
     netcdf_filename = tmp_path / "test_var_values.nc"
     postdb.get_var_values_cartesian_for_download(
