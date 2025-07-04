@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, text
 from typing import Annotated, Union
-import time
 import datetime
 import dotenv
 import os
@@ -71,17 +70,11 @@ def get_cartesian(
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
     start_time = (requested_time_point.year, requested_time_point.month)
     var_name = "t2m"
-    t_start_retrieving = time.time()
     try:
         var_value = db.get_var_values_cartesian(
             session,
             start_time_point=start_time,
             var_names=[var_name],
-        )
-        t_end_retrieving = time.time()
-        print(
-            f"Retrieved {var_name} value in \
-            {t_end_retrieving - t_start_retrieving} seconds."
         )
         return {"result": var_value}
     except Exception as e:

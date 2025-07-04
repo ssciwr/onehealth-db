@@ -18,4 +18,5 @@ def test_db_status():
 
 
 def test_get_cartesian():
+    # at the moment we cannot test this easily without the deployment set up
     pass
