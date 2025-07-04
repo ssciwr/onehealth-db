@@ -655,10 +655,16 @@ def get_time_points(
     return (
         session.query(TimePoint)
         .filter(
-            TimePoint.year >= start_time_point[0],
-            TimePoint.month >= start_time_point[1],
-            TimePoint.year <= end_time_point[0],
-            TimePoint.month <= end_time_point[1],
+            (TimePoint.year > start_time_point[0])
+            | (
+                (TimePoint.year == start_time_point[0])
+                & (TimePoint.month >= start_time_point[1])
+            ),
+            (TimePoint.year < end_time_point[0])
+            | (
+                (TimePoint.year == end_time_point[0])
+                & (TimePoint.month <= end_time_point[1])
+            ),
         )
         .all()
     )
@@ -714,7 +720,7 @@ def get_var_types(
 
 def sort_grid_points_get_ids(
     grid_points: List[GridPoint],
-) -> tuple[dict, set[float], set[float]]:
+) -> tuple[dict, list[float], list[float]]:
     # Sort and deduplicate latitudes and longitudes
     latitudes = sorted({gp.latitude for gp in grid_points})
     longitudes = sorted({gp.longitude for gp in grid_points})
