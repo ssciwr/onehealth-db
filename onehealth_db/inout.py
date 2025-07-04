@@ -114,7 +114,7 @@ def get_filename(
 
     return file_name
 
-  
+
 if __name__ == "__main__":
     data_format = "netcdf"  # processing for "grib" has not been supported yet
     data_folder = Path("data/in/")
