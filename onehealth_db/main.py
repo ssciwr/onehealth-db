@@ -6,8 +6,18 @@ from sqlalchemy import create_engine, text
 from typing import Annotated, Union
 import time
 import datetime
+import dotenv
+import os
 
-db_url = "postgresql+psycopg2://postgres:postgres@localhost:5432/onehealth_db"
+
+# get the db url from dotenv
+dotenv.load_dotenv()
+db_url = os.environ.get("DB_URL")
+# with the initialization of the engine like this,
+# we cannot use the same db mocking strategy as in the other tests
+# because the engine is created before the tests are run.
+if not db_url:
+    raise ValueError("DB_URL environment variable is not set.")
 engine = create_engine(db_url)
 
 
@@ -18,6 +28,11 @@ async def lifespan(app: FastAPI):
 
 
 def get_session():
+    if engine is None:
+        raise RuntimeError(
+            "Database engine is not initialized. \
+                           Please check the DB_URL environment variable."
+        )
     session = db.create_session(engine)
     try:
         yield session
@@ -52,6 +67,8 @@ def get_cartesian(
 ) -> Union[dict, None]:
     # the frontend will request a variable over all lat, long values
     # the date input is 2016-01-01 (a date object)
+    if not isinstance(requested_time_point, datetime.date):
+        return {"error": "Invalid date format. Use YYYY-MM-DD."}
     start_time = (requested_time_point.year, requested_time_point.month)
     var_name = "t2m"
     t_start_retrieving = time.time()
@@ -59,10 +76,7 @@ def get_cartesian(
         var_value = db.get_var_values_cartesian(
             session,
             start_time_point=start_time,
-            end_time_point=start_time,
-            area=None,
             var_names=[var_name],
-            netcdf_file=None,
         )
         t_end_retrieving = time.time()
         print(
