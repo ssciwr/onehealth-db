@@ -35,6 +35,7 @@ dependencies = [
   "dask[complete]",
   "testcontainers",
   "pooch",
+  "scipy",
 ]
 
 [project.optional-dependencies]
