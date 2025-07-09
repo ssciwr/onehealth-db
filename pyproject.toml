@@ -60,4 +60,4 @@ Homepage = "https://github.com/ssciwr/onehealth-db"
 Issues = "https://github.com/ssciwr/onehealth-db/issues"
 
 [tool.setuptools]
-packages = ["onehealth-db","onehealth-db.data"]
+packages = ["onehealth_db","onehealth_db.data"]

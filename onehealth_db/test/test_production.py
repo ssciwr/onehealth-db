@@ -57,7 +57,7 @@ def test_get_production_data(tmp_path: Path):
 def test_create_directories(tmp_path: Path):
     prod.create_directories(str(tmp_path) + "test")
     testdir = tmp_path / "test"
-    assert testdir.exists
+    assert testdir.exists()
 
 
 def test_get_engine():
