@@ -8,6 +8,7 @@ import os
 from onehealth_db import postgresql_database as db
 import zipfile
 import xarray as xr
+from sqlalchemy import engine
 
 
 def read_production_config(dict_path: str | Traversable | Path | None = None) -> dict:
@@ -61,7 +62,7 @@ def get_production_data(url: str, filename: str, filehash: str, outputdir: Path)
     return 0
 
 
-def create_directories(dir: str) -> None:
+def create_directories(dir: str) -> int:
     """
     Create directories if they do not exist.
 
@@ -70,9 +71,10 @@ def create_directories(dir: str) -> None:
     """
     output_dir = Path(dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    return 0
 
 
-def get_engine():
+def get_engine() -> engine.Engine:
     # get the db url from dotenv
     dotenv.load_dotenv()
     db_url = os.environ.get("DB_URL")
@@ -88,7 +90,7 @@ def get_engine():
     return engine
 
 
-def insert_data(engine, shapefiles_folder_path):
+def insert_data(engine: engine.Engine, shapefiles_folder_path: Path) -> int:
     # check that the folder exists
     if not shapefiles_folder_path.is_dir():
         raise ValueError(
@@ -114,7 +116,9 @@ def get_var_types_from_config(config: dict) -> list:
     return var_types
 
 
-def insert_var_values(engine, era5_land_path=None, isimip_path=None):
+def insert_var_values(
+    engine: engine.Engine, era5_land_path: Path = None, isimip_path: Path = None
+) -> int:
     era5_ds = xr.open_dataset(era5_land_path, chunks={})
     isimip_ds = xr.open_dataset(isimip_path, chunks={})
     # rechunk the dataset
@@ -160,6 +164,7 @@ def insert_var_values(engine, era5_land_path=None, isimip_path=None):
         var_type_id_map,
         to_monthly=False,
     )
+    return 0
 
 
 def main() -> None:
