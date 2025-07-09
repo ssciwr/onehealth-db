@@ -10,7 +10,9 @@ from sqlalchemy import (
     UniqueConstraint,
     ForeignKeyConstraint,
     engine,
+    func,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
 from geoalchemy2 import Geometry, WKBElement
@@ -21,12 +23,14 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 import time
+import datetime
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Type
+from typing import Type, Tuple, List
+from fastapi import HTTPException
 
 
-STR_CRS = "4326"
+CRS = 4326
 STR_POINT = "SRID={};POINT({} {})"
 BATCH_SIZE = 10000
 MAX_WORKERS = 4
@@ -55,7 +59,7 @@ class NutsDef(Base):
     urbn_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     coast_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     geometry: Mapped[WKBElement] = mapped_column(
-        Geometry(geometry_type="POINT", srid=4326)
+        Geometry(geometry_type="POINT", srid=CRS)
     )
 
 
@@ -70,7 +74,7 @@ class GridPoint(Base):
     longitude: Mapped[float] = mapped_column(Float())
 
     # Geometry column for PostGIS
-    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326), nullable=True)
+    point: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=CRS), nullable=True)
 
     __table_args__ = (
         Index("idx_point_gridpoint", "point", postgresql_using="gist"),
@@ -83,7 +87,9 @@ class GridPoint(Base):
         self.longitude = longitude
         # add value of point automatically,
         # only works when using the constructor, i.e. session.add()
-        self.point = STR_POINT.format(STR_CRS, self.longitude, self.latitude)
+        self.point = func.ST_GeomFromText(
+            STR_POINT.format(str(CRS), self.longitude, self.latitude)
+        )
 
 
 class TimePoint(Base):
@@ -279,7 +285,7 @@ def add_data_list_bulk(session: Session, data_dict_list: list, class_type: Type[
     Args:
         session (Session): SQLAlchemy session object.
         data_dict_list (list): List of dictionaries containing data to insert.
-        class_type (Type[Base]): SQLAlchemy model class type to insert data into.
+        class_type (Type[Base]): SQLAlchemy mapped class to insert data into.
     """
     try:
         session.bulk_insert_mappings(class_type, data_dict_list)
@@ -303,7 +309,7 @@ def insert_grid_points(session: Session, latitudes: np.ndarray, longitudes: np.n
         {
             "latitude": float(lat),
             "longitude": float(lon),
-            "point": STR_POINT.format(STR_CRS, float(lon), float(lat)),
+            "point": STR_POINT.format(str(CRS), float(lon), float(lat)),
         }
         for lat in latitudes
         for lon in longitudes
@@ -338,7 +344,9 @@ def extract_time_point(
         raise ValueError("Invalid time point format.")
 
 
-def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndarray:
+def get_unique_time_points(
+    time_point_data: list[Tuple[np.ndarray, bool]],
+) -> np.ndarray:
     """Get the unique of time points.
 
     Args:
@@ -374,10 +382,12 @@ def get_unique_time_points(time_point_data: list[(np.ndarray, bool)]) -> np.ndar
 
     concatenated = np.concatenate(time_points)
     unique_time_points = np.unique(concatenated)
-    return sorted(unique_time_points)
+    return np.sort(unique_time_points)
 
 
-def insert_time_points(session: Session, time_point_data: list[(np.ndarray, bool)]):
+def insert_time_points(
+    session: Session, time_point_data: list[Tuple[np.ndarray, bool]]
+):
     """Insert time points into the database.
 
     Args:
@@ -414,15 +424,7 @@ def insert_var_types(session: Session, var_types: list[dict]):
         session (Session): SQLAlchemy session object.
         var_types (list[dict]): List of dictionaries containing variable type data.
     """
-    var_types = [
-        VarType(
-            name=var_type["name"],
-            unit=var_type["unit"],
-            description=var_type["description"],
-        )
-        for var_type in var_types
-    ]
-    add_data_list(session, var_types)
+    add_data_list_bulk(session, var_types, VarType)
     print("Variable types inserted.")
 
 
@@ -629,3 +631,497 @@ def get_var_value(
         .first()
     )
     return result.value if result else None
+
+
+def get_time_points(
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+) -> List[TimePoint]:
+    """Get time points from the database that fall within a specified range.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+
+    Returns:
+        List[TimePoint]: List of TimePoint objects within the specified range.
+    """
+    if end_time_point is None:
+        end_time_point = start_time_point
+
+    return (
+        session.query(TimePoint)
+        .filter(
+            (TimePoint.year > start_time_point[0])
+            | (
+                (TimePoint.year == start_time_point[0])
+                & (TimePoint.month >= start_time_point[1])
+            ),
+            (TimePoint.year < end_time_point[0])
+            | (
+                (TimePoint.year == end_time_point[0])
+                & (TimePoint.month <= end_time_point[1])
+            ),
+        )
+        .all()
+    )
+
+
+def get_grid_points(
+    session: Session, area: None | Tuple[float, float, float, float] = None
+) -> List[GridPoint]:
+    """Get grid points from the database that fall within a specified area.
+    Args:
+        session (Session): SQLAlchemy session object.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are returned.
+    Returns:
+        List[GridPoint]: List of GridPoint objects within the specified area.
+    """
+    if area is None:
+        return session.query(GridPoint).all()
+
+    north, west, south, east = area
+    return (
+        session.query(GridPoint)
+        .filter(
+            GridPoint.latitude <= north,
+            GridPoint.latitude >= south,
+            GridPoint.longitude >= west,
+            GridPoint.longitude <= east,
+        )
+        .all()
+    )
+
+
+def get_var_types(
+    session: Session,
+    var_names: None | List[str] = None,
+) -> List[VarType]:
+    """Get variable types from the database with names specified in a list.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are returned.
+
+    Returns:
+        List[VarType]: List of VarType objects with the specified names.
+    """
+    if var_names is None:
+        return session.query(VarType).all()
+
+    return session.query(VarType).filter(VarType.name.in_(var_names)).all()
+
+
+def sort_grid_points_get_ids(
+    grid_points: List[GridPoint],
+) -> tuple[dict, list[float], list[float]]:
+    # Sort and deduplicate latitudes and longitudes
+    latitudes = sorted({gp.latitude for gp in grid_points})
+    longitudes = sorted({gp.longitude for gp in grid_points})
+
+    # Create fast index maps for latitude and longitude
+    lat_to_index = {lat: i for i, lat in enumerate(latitudes)}
+    lon_to_index = {lon: i for i, lon in enumerate(longitudes)}
+
+    # Map grid_id to (lat_index, lon_index)
+    grid_ids = {
+        gp.id: (lat_to_index[gp.latitude], lon_to_index[gp.longitude])
+        for gp in grid_points
+    }
+    return grid_ids, latitudes, longitudes
+
+
+def get_var_values_cartesian(
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+    var_names: None | List[str] = None,
+) -> dict:
+    """Get variable values for a cartesian map.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are used.
+
+    Returns:
+        dict: a dict with (time, latitude, longitude, var_value) keys.
+    """
+    # get the time points and their ids
+    time_points = get_time_points(session, start_time_point, end_time_point)
+
+    if not time_points:
+        print("No time points found in the specified range.")
+        raise HTTPException(
+            status_code=400, detail="Missing data for requested time point."
+        )
+
+    # create a list of time points and their ids
+    time_values_datetime = [
+        datetime.date(year=tp.year, month=tp.month, day=1) for tp in time_points
+    ]
+    time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
+
+    # get all the grid points and their ids
+    grid_points = session.query(GridPoint).all()
+    if not grid_points:
+        print("No grid points found in the database.")
+        raise HTTPException(
+            status_code=400, detail="No grid points found in the database."
+        )
+    # Sort and deduplicate latitudes and longitudes
+    grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
+
+    # get variable types and their ids
+    var_types = get_var_types(session, var_names)
+    if not var_types:
+        print("No variable types found in the specified names.")
+        raise HTTPException(
+            status_code=400, detail="Missing variable type for requested time point."
+        )
+
+    # get variable values for each grid point and time point
+    values_list = []
+    for vt in var_types:
+        values = (
+            session.query(VarValue)
+            .filter(
+                VarValue.grid_id.in_(grid_ids.keys()),
+                VarValue.time_id.in_(time_ids.keys()),
+                VarValue.var_id == vt.id,
+            )
+            .all()
+        )
+
+        values_list.append([])
+
+        # fill the values array with the variable values
+        for vv in values:
+            values_list[-1].append(vv.value)
+
+    mydict = {
+        "time": time_values_datetime,
+        "latitude": latitudes,
+        "longitude": longitudes,
+        "var_value": values_list,
+        "var_names": [vt.name for vt in var_types],
+        "var_units": [vt.unit for vt in var_types],
+    }
+    return mydict
+
+
+def get_var_values_cartesian_for_download(
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+    area: None | Tuple[float, float, float, float] = None,
+    var_names: None | List[str] = None,
+    netcdf_file: str = "cartesian_grid_data_onehealth.nc",
+) -> dict:
+    """Get variable values for a cartesian map.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are used.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are used.
+        netcdf_file (str): Name of the NetCDF file to save the dataset.
+
+    Returns:
+        dict: a dict with (time, latitude, longitude, var_value) keys.
+            time or var_value is empty if no data is found.
+    """
+    # get the time points and their ids
+    time_points = get_time_points(session, start_time_point, end_time_point)
+
+    if not time_points:
+        print("No time points found in the specified range.")
+        raise HTTPException(
+            status_code=400, detail="Missing data for requested time point."
+        )
+
+    # create a list of time points and their ids
+    time_values = [
+        np.datetime64(pd.Timestamp(year=tp.year, month=tp.month, day=1), "ns")
+        for tp in time_points
+    ]
+    time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
+
+    # get the grid points and their ids
+    grid_points = get_grid_points(session, area)
+
+    if not grid_points:
+        print("No grid points found in the specified area.")
+        raise HTTPException(
+            status_code=400, detail="No grid points found in specified area."
+        )
+
+    # Sort and deduplicate latitudes and longitudes
+    grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
+
+    # get variable types and their ids
+    var_types = get_var_types(session, var_names)
+    if not var_types:
+        print("No variable types found in the specified names.")
+        raise HTTPException(
+            status_code=400, detail="Missing variable type for requested time point."
+        )
+
+    # create an empty dataset
+    ds = xr.Dataset(
+        coords={
+            "time": ("time", time_values),
+            "latitude": ("latitude", latitudes),
+            "longitude": ("longitude", longitudes),
+        }
+    )
+
+    # get variable values for each grid point and time point
+    for vt in var_types:
+        var_name = vt.name
+        values = (
+            session.query(VarValue)
+            .filter(
+                VarValue.grid_id.in_(grid_ids.keys()),
+                VarValue.time_id.in_(time_ids.keys()),
+                VarValue.var_id == vt.id,
+            )
+            .all()
+        )
+
+        # dummy values array
+        values_array = np.full(
+            (len(time_values), len(latitudes), len(longitudes)), np.nan
+        )
+
+        # fill the values array with the variable values
+        for vv in values:
+            grid_index = grid_ids[vv.grid_id]
+            lat_index, lon_index = grid_index
+            time_index = time_ids[vv.time_id]
+            values_array[time_index, lat_index, lon_index] = vv.value
+
+        # add data to the dataset
+        ds[var_name] = (("time", "latitude", "longitude"), values_array)
+
+    # add variable attributes
+    for var_type in var_types:
+        ds[var_type.name].attrs["unit"] = var_type.unit
+        ds[var_type.name].attrs["description"] = var_type.description
+    # add global attributes
+    ds.attrs["source"] = "OneHealth Database"
+    ds.attrs["created_at"] = pd.Timestamp.now().isoformat()
+    ds.attrs["description"] = "Variable values for a cartesian map from the database."
+
+    # save the dataset to a NetCDF file
+    ds.to_netcdf(netcdf_file)
+    print(f"Dataset saved to {netcdf_file}")
+
+    return {"response": "Dataset created successfully.", "netcdf_file": netcdf_file}
+
+
+def get_nuts_regions(
+    engine: engine.Engine,
+    area: None | Tuple[float, float, float, float] = None,
+) -> gpd.GeoDataFrame:
+    """Get NUTS regions from the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all NUTS regions are returned.
+
+    Returns:
+        gpd.GeoDataFrame: GeoDataFrame with NUTS region attributes and geometries.
+    """
+    if area is None:
+        return gpd.read_postgis("SELECT * FROM nuts_def", engine, geom_col="geometry")
+
+    north, west, south, east = area
+    return gpd.read_postgis(
+        f"""
+        SELECT * FROM nuts_def
+        WHERE ST_Intersects(
+            ST_MakeEnvelope({west}, {south}, {east}, {north}, {CRS}),
+            geometry
+        )
+        """,
+        engine,
+        geom_col="geometry",
+    )
+
+
+def get_grid_ids_in_nuts(
+    engine: engine.Engine,
+    nuts_regions: gpd.GeoDataFrame,
+) -> List[int]:
+    """Get grid point IDs that are within the NUTS regions.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        nuts_regions (gpd.GeoDataFrame): GeoDataFrame with NUTS region geometries.
+
+    Returns:
+        List[int]: List of grid point IDs that intersect with the NUTS regions.
+    """
+    if nuts_regions.empty:
+        return []
+
+    sql = """
+    SELECT id, point as geometry
+    FROM grid_point
+    """
+
+    # turn the grid points into a GeoDataFrame
+    grid_points_gdf = gpd.read_postgis(
+        sql,
+        engine,
+        geom_col="geometry",
+        crs=f"EPSG:{str(CRS)}",
+    )
+
+    # filter grid points that intersect with NUTS regions
+    filtered_grid_points_gdf = gpd.sjoin(
+        grid_points_gdf, nuts_regions, how="inner", predicate="intersects"
+    )
+
+    return sorted(set(filtered_grid_points_gdf["id"].tolist()))
+
+
+def get_var_values_nuts(
+    engine: engine.Engine,
+    session: Session,
+    start_time_point: Tuple[int, int],
+    end_time_point: Tuple[int, int] | None = None,
+    area: None | Tuple[float, float, float, float] = None,
+    var_names: None | List[str] = None,
+    shapefile: str | None = None,
+) -> gpd.GeoDataFrame | None:
+    """Get variable values for NUTS regions.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        session (Session): SQLAlchemy session object.
+        start_time_point (Tuple[int, int]): Start time point as (year, month).
+        end_time_point (Tuple[int, int] | None): End time point as (year, month).
+            If None, only the start time point is used.
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are used.
+        var_names (None | List[str]): List of variable names to filter by.
+            If None, all variable types are used.
+        netcdf_file (str | None): Path to the NetCDF file to save the dataset.
+            If None, the dataset is not saved to a file.
+
+    Returns:
+        gpd.GeoDataFrame | None: GeoDataFrame with NUTS region attributes
+            and variable values for each NUTS region.
+            None if no data is found.
+    """
+    # TODO: shorten or simplify this function
+    # get the time points and their ids
+    time_points = get_time_points(session, start_time_point, end_time_point)
+
+    if not time_points:
+        print("No time points found in the specified range.")
+        return None
+    time_ids = [tp.id for tp in time_points]
+
+    # get the nuts regions
+    nuts_regions = get_nuts_regions(engine, area)
+    if nuts_regions.empty:
+        print("No NUTS regions found in the specified area.")
+        return None
+
+    # find grid point IDs inside the NUTS regions
+    grid_ids_in_nuts = get_grid_ids_in_nuts(engine, nuts_regions)
+
+    # get variable types and their ids
+    var_types = get_var_types(session, var_names)
+    if not var_types:
+        print("No variable types found in the specified names.")
+        return None
+    var_ids = [vt.id for vt in var_types]
+
+    # get variable values for each grid point and time point
+    query = (
+        session.query(
+            VarValue.value.label("var_value"),
+            GridPoint.point.label("geometry"),
+            TimePoint.year,
+            TimePoint.month,
+            TimePoint.day,
+            VarType.name.label("var_name"),
+        )
+        .join(GridPoint, VarValue.grid_id == GridPoint.id)
+        .join(TimePoint, VarValue.time_id == TimePoint.id)
+        .join(VarType, VarValue.var_id == VarType.id)
+        .filter(
+            GridPoint.id.in_(grid_ids_in_nuts),
+            TimePoint.id.in_(time_ids),
+            VarType.id.in_(var_ids),
+        )
+    )
+    compiled_query = query.statement.compile(
+        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+    )
+    var_values = gpd.read_postgis(
+        compiled_query,
+        engine,
+        params={
+            "grid_ids_in_nuts": list(grid_ids_in_nuts),
+            "time_ids": list(time_ids),
+            "var_ids": list(var_ids),
+        },
+        geom_col="geometry",
+    )
+    if var_values.empty:
+        print("No variable values found for the specified criteria.")
+        return None
+
+    # convert year, month, day to np.datetime64
+    var_values["time"] = pd.to_datetime(
+        var_values[["year", "month", "day"]].assign(day=1)
+    )
+    var_values = var_values.drop(columns=["year", "month", "day"])
+
+    # get variable values for each NUTS region
+    aggregated_by_nuts = (
+        gpd.sjoin(
+            var_values,
+            nuts_regions,
+            how="inner",
+            predicate="intersects",
+        )
+        .groupby(["nuts_id", "var_name", "time"])
+        .agg(
+            {
+                "var_value": "mean",  # average value for the variable
+            }
+        )
+        .reset_index()
+    )
+    # merge the aggregated values with the NUTS regions
+    nuts_var_values = nuts_regions.merge(aggregated_by_nuts, on="nuts_id")
+
+    # save to shapefile if specified
+    if shapefile:
+        nuts_var_values.to_file(shapefile, driver="ESRI Shapefile")
+        print(f"NUTS variable values saved to {shapefile}")
+
+    return nuts_var_values

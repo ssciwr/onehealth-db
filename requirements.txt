@@ -11,4 +11,5 @@ geoalchemy2
 psycopg2-binary
 dask[complete]
 testcontainers
+fastapi
 scipy

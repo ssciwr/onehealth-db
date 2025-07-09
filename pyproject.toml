@@ -35,6 +35,8 @@ dependencies = [
   "dask[complete]",
   "testcontainers",
   "pooch",
+  "fastapi[standard]",
+  "uvicorn",
   "scipy",
 ]
 
