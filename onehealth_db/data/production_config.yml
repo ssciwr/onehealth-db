@@ -1,20 +1,32 @@
 data_to_fetch:
-  - var-name: 
-    - "t2m"
-    - "tp"
-    filename: "era5_data_2016_2017_2t_tp_monthly_celsius_mm_resampled_0.5degree_trim.nc"
+  - var_name: 
+    - "t2m":
+      - "unit": Celsius"
+      - "description": "2m temperature"
+    - "tp":
+      - "unit": "mm"
+      - "description": "Total precipitation"
+    filename: "era5_data_2016_2017_all_2t_tp_monthly_unicoords_adjlon_celsius_mm_05deg_trim.nc"
     host: "heibox"
-    url: "https://heibox.uni-heidelberg.de/f/264a47e3aa484946b8f0/?dl=1"
-    filehash: "3e338f34099ae020462479ea0d6e07e2e25fdaa07e034f063be256a6539666f5"
+    url: "https://heibox.uni-heidelberg.de/f/5e9e8a50160744a0ac5f/?dl=1"
+    filehash: "f3cdd0b06548766333eac9b7ef60a0b9e9d6053d4cada206626b3ac06b8a140d"
     description: "ERA5 data for 2m temperature and total precipitation, monthly averages, resampled to 0.5 degree resolution, trimmed to specific region."
-  - var-name:
-    - "total-population"
+  - var_name:
+    - "total-population":
+      - "unit": "1"
+      - "description": "Total population"
     filename: "total_population_2016_2017.nc"
     host: "heibox"
-    url: "https://heibox.uni-heidelberg.de/f/264a47e3aa484946b8f0/?dl=1"
-    filehash: "3e338f34099ae020462479ea0d6e07e2e25fdaa07e034f063be256a6539666f5"
+    url: "https://heibox.uni-heidelberg.de/f/b648fec9d7c1470bbdd1/?dl=1"
+    filehash: "fad423b7f7f77532b62ec95655ed93efdf6deca044d547c3b413f003f41a6d76"
     description: "Total population data for the years 2016 and 2017."
-
+  - var_name:
+    - "NUTS-definiton"
+    filename: "NUTS_RG_20M_2024_4326.shp.zip"
+    host: "heibox"
+    url: "https://heibox.uni-heidelberg.de/f/51f76c355c944f96a82f/?dl=1"
+    filehash: "246a5e1a3901380f194879cff5a65bbac86c9c906a7871027a3a918dbe6c7e46"
+    description: "NUTS shape data using the 4326 grid representation."
 datalake:
   datadir_bronze: ".data_onehealth_db/bronze"
   datadir_silver: ".data_onehealth_db/silver"

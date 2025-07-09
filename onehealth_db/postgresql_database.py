@@ -234,7 +234,7 @@ def insert_nuts_def(engine: engine.Engine, shapefile_path: Path):
 
     Args:
         engine (engine.Engine): SQLAlchemy engine object.
-        shapefile_path (Path): Path to the NUTS shapefile.
+        shapefile_path (Path): Path to the folder containing the NUTS shapefiles.
     """
     nuts_data = gpd.GeoDataFrame.from_file(shapefile_path)
     # rename columns to match the database schema
