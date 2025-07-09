@@ -82,9 +82,7 @@ def get_engine():
     except Exception as e:
         raise ValueError(
             "Could not initialize engine, please check \
-                         your db_url {}".format(
-                db_url
-            )
+                         your db_url {}".format(db_url)
         ) from e
     return engine
 
