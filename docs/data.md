@@ -57,7 +57,7 @@ For downloading, please choose:
         shape data folder
         |____.shp file: geometry data (e.g. polygons)
         |____.shx file: index for geometry data
-        |____.dbf file: attribute data for each NUTS region
+        |____.dbf file: attribute data for each NUTS region (e.g NUTS name, NUTS ID)
         |____.prj file: information on CRS
         |____.cpg file: character encoding data
         ```
