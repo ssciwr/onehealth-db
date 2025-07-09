@@ -60,7 +60,58 @@ def test_create_directories(tmp_path: Path):
     assert testdir.exists
 
 
-@pytest.mark.skip(reason="Skip at the moment due to requirement of running prod db.")
+def test_get_engine():
+    # test that the engine can be created with production db
+    engine = prod.get_engine()
+    assert engine is not None
+
+
+def test_insert_data(get_engine_with_tables, get_nuts_def_data, tmp_path):
+    # here we test that the NUTS data can be inserted into the database
+    # we could test this on the production db
+    # but for the purpose of this test, we will use the test db
+    shapefile_folder_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(shapefile_folder_path, driver="ESRI Shapefile")
+    completion_code = prod.insert_data(
+        get_engine_with_tables, shapefile_folder_path.parents[0]
+    )
+    assert completion_code == 0
+
+
+def test_get_var_types_from_config():
+    # test that the variable types can be extracted from the config
+    config_dict = {
+        "data_to_fetch": [
+            {
+                "var_name": [
+                    {"name": "t2m", "unit": "Celsius", "description": "2m temperature"}
+                ],
+            },
+            {
+                "var_name": [
+                    {
+                        "name": "total-population",
+                        "unit": "1",
+                        "description": "Total population",
+                    }
+                ],
+            },
+        ]
+    }
+    var_types = prod.get_var_types_from_config(config_dict["data_to_fetch"])
+    assert len(var_types) == 2
+    assert var_types[0]["name"] == "t2m"
+    assert var_types[0]["unit"] == "Celsius"
+    assert var_types[0]["description"] == "2m temperature"
+    assert var_types[1]["name"] == "total-population"
+    assert var_types[1]["unit"] == "1"
+    assert var_types[1]["description"] == "Total population"
+
+
+@pytest.mark.skip(
+    reason="This test requires a lot of resources and is not suitable for CI."
+)
 def test_main():
     """Test the main function to ensure it runs without errors."""
     # This test will not check the actual functionality but will ensure

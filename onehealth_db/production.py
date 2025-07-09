@@ -7,6 +7,7 @@ import dotenv
 import os
 from onehealth_db import postgresql_database as db
 import zipfile
+import xarray as xr
 
 
 def read_production_config(dict_path: str | Traversable | Path | None = None) -> dict:
@@ -95,6 +96,7 @@ def insert_data(engine, shapefiles_folder_path):
         )
     # add NUTS definition data
     db.insert_nuts_def(engine, shapefiles_folder_path)
+    return 0
 
 
 def get_var_types_from_config(config: dict) -> list:
@@ -112,6 +114,54 @@ def get_var_types_from_config(config: dict) -> list:
     return var_types
 
 
+def insert_var_values(engine, era5_land_path=None, isimip_path=None):
+    era5_ds = xr.open_dataset(era5_land_path, chunks={})
+    isimip_ds = xr.open_dataset(isimip_path, chunks={})
+    # rechunk the dataset
+    era5_ds = era5_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
+    isimip_ds = isimip_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
+    # add grid points
+    grid_point_session = db.create_session(engine)
+    db.insert_grid_points(
+        grid_point_session,
+        latitudes=era5_ds.latitude.to_numpy(),
+        longitudes=era5_ds.longitude.to_numpy(),
+    )
+    grid_point_session.close()
+    # add time points
+    time_point_session = db.create_session(engine)
+    db.insert_time_points(
+        time_point_session,
+        time_point_data=[
+            (era5_ds.time.to_numpy(), False),
+            (isimip_ds.time.to_numpy(), True),
+        ],
+    )  # True means yearly data
+    time_point_session.close()
+    # get id maps for grid, time, and variable types
+    id_map_session = db.create_session(engine)
+    grid_id_map, time_id_map, var_type_id_map = db.get_id_maps(id_map_session)
+    id_map_session.close()
+    # add t2m values
+    _, _ = db.insert_var_values(
+        engine, era5_ds, "t2m", grid_id_map, time_id_map, var_type_id_map
+    )
+    # add total precipitation values
+    _, _ = db.insert_var_values(
+        engine, era5_ds, "tp", grid_id_map, time_id_map, var_type_id_map
+    )
+    # add population data
+    _, _ = db.insert_var_values(
+        engine,
+        isimip_ds,
+        "total-population",
+        grid_id_map,
+        time_id_map,
+        var_type_id_map,
+        to_monthly=False,
+    )
+
+
 def main() -> None:
     """
     Main function to set up the production database and data lake.
@@ -121,6 +171,8 @@ def main() -> None:
     """
     # set up production database and data lake using the provided config
     config = read_production_config()
+    era5_land_path = None
+    isimip_path = None
     shapefile_folder_path = None
     # create the data lake structure if it does not exist
     for dir_name in config["datalake"].keys():
@@ -150,7 +202,18 @@ def main() -> None:
                 filehash=data["filehash"],
                 outputdir=Path(config["datalake"]["datadir_silver"]),
             )
-        if data["var_name"][0]["name"] == "NUTS-definition":
+        if data["var_name"][0]["name"] in ["t2m", "tp"]:
+            # set the path to the ERA5 data
+            era5_land_path = (
+                Path(config["datalake"]["datadir_silver"]) / data["filename"]
+            )
+            print(f"ERA5 land data path: {era5_land_path}")
+        elif data["var_name"][0]["name"] == "total-population":
+            # set the path to the ISIMIP data
+            isimip_path = Path(config["datalake"]["datadir_silver"]) / data["filename"]
+            print(f"ISIMIP population data path: {isimip_path}")
+        elif data["var_name"][0]["name"] == "NUTS-definition":
+            # extract file and set the path to the NUTS shapefiles
             shapefile_path = Path(config["datalake"]["datadir_silver"])
             shapefile_path = shapefile_path / data["filename"]
             # make sure the shapefile folder is unzipped
@@ -171,7 +234,8 @@ def main() -> None:
     var_types = get_var_types_from_config(config=config["data_to_fetch"])
     db.insert_var_types(var_type_session, var_types)
     var_type_session.close()
-    # insert the population data
+    # insert the data
+    insert_var_values(engine, era5_land_path=era5_land_path, isimip_path=isimip_path)
 
 
 if __name__ == "__main__":

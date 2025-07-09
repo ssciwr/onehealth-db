@@ -504,7 +504,10 @@ def insert_var_values(
         grid_id_map (dict): Mapping of grid points to IDs.
         time_id_map (dict): Mapping of time points to IDs.
         var_id_map (dict): Mapping of variable types to IDs.
-        to_monthly (bool): Whether to convert yearly data to monthly data.
+        to_monthly (bool): Whether to convert yearly data to monthly data. Defaults to False.
+    Returns:
+        tuple: A tuple containing the time taken to convert yearly data to monthly data,
+            and the time taken to insert the variable values.
     """
     if to_monthly:
         # convert yearly data to monthly data
