@@ -773,7 +773,8 @@ def test_get_nuts_regions(
 
     # with area
     result = postdb.get_nuts_regions(
-        get_engine_with_tables, area=(1.0, 0.0, 0.0, 2.0)  # [N, W, S, E]
+        get_engine_with_tables,
+        area=(1.0, 0.0, 0.0, 2.0),  # [N, W, S, E]
     )
     assert len(result) == 2
     assert result.loc[0, "nuts_id"] == "NUTS1"
@@ -783,7 +784,8 @@ def test_get_nuts_regions(
 
     # no nuts data
     result = postdb.get_nuts_regions(
-        get_engine_with_tables, area=(20.0, 20.0, 20.0, 20.0)  # [N, W, S, E]
+        get_engine_with_tables,
+        area=(20.0, 20.0, 20.0, 20.0),  # [N, W, S, E]
     )
     assert result.empty
 
