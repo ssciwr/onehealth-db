@@ -100,14 +100,16 @@ def insert_data(engine, shapefiles_folder_path):
 def get_var_types_from_config(config: dict) -> list:
     """Get the variable types from the configuration file and
     place them in a dictionary."""
-    # var_types = []
-    # for data in config:
-    #     for var_name in data["var_name"]:
-    #         temp_dict = {
-    #             "name": var_name,
-    #             "unit": var_name
-    #                      }
-    #     var_types[var_name] = var_name
+    var_types = []
+    for data in config:
+        for var_name in data["var_name"]:
+            temp_dict = {
+                "name": var_name["name"],
+                "unit": var_name["unit"],
+                "description": var_name["description"],
+            }
+            var_types.append(temp_dict)
+    return var_types
 
 
 def main() -> None:
@@ -148,7 +150,7 @@ def main() -> None:
                 filehash=data["filehash"],
                 outputdir=Path(config["datalake"]["datadir_silver"]),
             )
-        if data["var_name"] == ["NUTS-definiton"]:
+        if data["var_name"][0]["name"] == "NUTS-definition":
             shapefile_path = Path(config["datalake"]["datadir_silver"])
             shapefile_path = shapefile_path / data["filename"]
             # make sure the shapefile folder is unzipped
@@ -165,10 +167,10 @@ def main() -> None:
     # insert the NUTS shape data
     insert_data(engine=engine, shapefiles_folder_path=shapefile_folder_path)
     # insert the cartesian variables data
-    # var_type_session = db.create_session(engine)
-    # var_types = get_var_types_from_config(config=config["data_to_fetch"])
-    # db.insert_var_types(var_type_session, var_types)
-    # var_type_session.close()
+    var_type_session = db.create_session(engine)
+    var_types = get_var_types_from_config(config=config["data_to_fetch"])
+    db.insert_var_types(var_type_session, var_types)
+    var_type_session.close()
     # insert the population data
 
 
