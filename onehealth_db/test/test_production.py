@@ -51,7 +51,7 @@ def test_get_production_data(tmp_path: Path):
     outputdir.mkdir(parents=True, exist_ok=True)
     completion_code = prod.get_production_data(url, filename, filehash, outputdir)
     assert completion_code == 0
-    assert (outputdir / filename).exists()
+    assert (outputdir / filename).is_file()
 
 
 def test_create_directories(tmp_path: Path):
