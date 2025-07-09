@@ -3,3 +3,4 @@
 *[ISIMIP]: Inter-Sectoral Impact Model Intercomparison Project
 *[ERA5]: ECMWF Reanalysis v5 (ERA5), the fifth generation of the global atmospheric reanalysis produced by the European Centre for Medium-Range Weather Forecasts (ECMWF)
 *[EPSG]: European Petroleum Survey Group
+*[CRS]: Coordinate Reference System 

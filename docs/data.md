@@ -42,10 +42,27 @@ source_name_list_of_years_list_of_months_list_of_vars[_montly][_area]_raw.ext
 ## Eurostat's NUTS definition 
 The regions are set [here](https://ec.europa.eu/eurostat/en/web/products-manuals-and-guidelines/w/ks-gq-23-010) and corresponding shapefiles can be downloaded [here](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-units-statistics).
 
+For downloading, please choose:
+
+* The latest year from NUTS year,
+* File format: `SHP`,
+* Geometry type: `Polygons (RG)`,
+* Scale: `20M`
+* CRS: `EPSG: 4326`
+
 ???+ note
-    * In this project, we use EPSG: 4326
-    * This NUTS definition file is only for Europe.
-    * If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefile.
+    * After downloading the file, unzip it to access the root folder containing the NUTS data (e.g. folder named `NUTS_RG_20M_2024_4326.shp`)
+        * Inside the unzipped folder, there are five different shapefiles, which are all required to display and extract the NUTS regions data.
+        ```
+        shape data folder
+        |____.shp file: geometry data (e.g. polygons)
+        |____.shx file: index for geometry data
+        |____.dbf file: attribute data for each NUTS region (e.g NUTS name, NUTS ID)
+        |____.prj file: information on CRS
+        |____.cpg file: character encoding data
+        ```
+    * These NUTS definition files are for Europe only.
+    * If a country does not have NUTS level $x \in [1,3]$, the corresponding data for these levels is excluded from the shapefiles.
 
 #### `NUTS_ID` explanation:
 * Structure of `NUTS_ID`: `<country><level>`
