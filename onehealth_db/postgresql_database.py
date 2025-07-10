@@ -234,15 +234,25 @@ def initialize_database(db_url: str, replace: bool = False):
     return engine
 
 
-def insert_nuts_def(engine: engine.Engine, shapefile_path: Path):
+def insert_nuts_def(engine: engine.Engine, shapefiles_path: Path):
     """
     Insert NUTS definition data into the database.
+    The shapefiles are downloaded from the Eurostat website.
+    More details for downloading NUTS shapefiles can be found in
+    [our data page](https://ssciwr.github.io/onehealth-db/data/#eurostats-nuts-definition)
+
+    Five shapefiles are involved in the process:
+    - `.shp`: geometry data (e.g. polygons)
+    - `.shx`: shape index data
+    - `.dbf`: attribute data (e.g. names, codes)
+    - `.prj`: projection data (i.e. CRS)
+    - `.cpg`: character encoding data
 
     Args:
         engine (engine.Engine): SQLAlchemy engine object.
-        shapefile_path (Path): Path to the folder containing the NUTS shapefiles.
+        shapefiles_path (Path): Path to the NUTS shapefiles.
     """
-    nuts_data = gpd.GeoDataFrame.from_file(shapefile_path)
+    nuts_data = gpd.GeoDataFrame.from_file(shapefiles_path)
     # rename columns to match the database schema
     nuts_data = nuts_data.rename(
         columns={
