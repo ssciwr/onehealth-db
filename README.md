@@ -16,9 +16,7 @@ The platform includes four main components: [webserver/frontend](https://github.
 **Further information:**
 
 * [About](docs/about.md): Information about the project, research group, and development group
-* [Data](docs/data.md): Used data sources
 * [Data Lake & Database](docs/datalake_database.md): How data is preprocessed, processed and stored in database
-* [References](docs/reference/duck_database.md): Information about the package and demonstration notebooks
 * [Issues](docs/issues.md): Some notes for running the package and further issues
 * [Contact](docs/contact.md): Contact information of relevant groups
 <!--intro-end-->
