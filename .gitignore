@@ -126,6 +126,7 @@ dmypy.json
 
 # sample data
 data
+!onehealth_db/data
 !onehealth_db/test/data
 !docs/index.html
 # keep the folder structure for input/output data below package level

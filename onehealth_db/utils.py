@@ -48,7 +48,7 @@ def _update_new_settings(settings: dict, new_settings: dict) -> bool:
         updatable = key in settings and settings[key] != new_value
         if key not in settings:
             warnings.warn(
-                "Key {} not found in the settings " "and will be skipped.".format(key),
+                "Key {} not found in the settings and will be skipped.".format(key),
                 UserWarning,
             )
         if updatable:

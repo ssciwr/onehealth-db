@@ -1,0 +1,8 @@
+data_to_fetch:
+  - var_name: 
+    - name: "t2m"
+      unit: "Celsius"
+      description: "2m temperature"
+    filename: "era5_data_2016_01_2t_tp_monthly_celsius_mm_resampled_0.5degree_trim.nc"
+    host: "local"
+    description: "ERA5 data for 2m temperature and total precipitation, monthly averages, resampled to 0.5 degree resolution, trimmed to specific region."
