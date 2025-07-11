@@ -34,11 +34,6 @@ jobs:
       run: |
         pip install pytest pytest-cov
 
-    - name: Create .cdsapirc file
-      run: |
-        echo "url: https://cds.climate.copernicus.eu/api" >> ~/.cdsapirc
-        echo "key: ${{ secrets.CDSAPI_KEY }}" >> ~/.cdsapirc
-
     - name: Execute PyTest
       env:
           DOCKER_HOST: unix:///var/run/docker.sock

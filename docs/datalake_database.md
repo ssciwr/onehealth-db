@@ -6,11 +6,6 @@ hide:
 
 # Data Lake & Database Backend
 
-## Data flowchart
-Downloaded data files will go through preprocessing steps as follows:
-
-![onehealth_data_flow.jpg](source/_static/onehealth_data_flow.jpg)
-
 ## Data model
 Downloaded and (pre)processed data is stored in the database as follows:
 ![onehealth_data_model.jpg](source/_static/onehealth_data_model.jpg)
