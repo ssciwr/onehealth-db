@@ -588,59 +588,41 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
     # normal case
     ds_result = postdb.get_var_values_cartesian(
         insert_data,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        var_names=None,
+        time_point=(2023, 1),
+        var_name="t2m",
     )
-    assert len(ds_result["latitude"]) == 2
-    assert len(ds_result["longitude"]) == 3
-    assert len(ds_result["time"]) == 1
-    assert len(ds_result["var_value"][0]) == 6
-    assert math.isclose(
-        ds_result["var_value"][0][0], get_dataset.t2m[0, 0, 0], abs_tol=1e-5
-    )
-    assert math.isclose(
-        ds_result["var_value"][0][4], get_dataset.t2m[1, 1, 0], abs_tol=1e-5
-    )
-    # with end point
+    assert len(ds_result["latitude, longitude, var_value"]) == 6
+    values = ds_result["latitude, longitude, var_value"][0]
+    print(values[0])
+    assert math.isclose(values[0], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[1], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)
+    # with default var
     ds_result = postdb.get_var_values_cartesian(
         insert_data,
-        start_time_point=(2023, 1),
-        end_time_point=(2024, 1),
-        var_names=None,
+        time_point=(2023, 1),
+        var_name=None,
     )
-    assert len(ds_result["latitude"]) == 2
-    assert len(ds_result["longitude"]) == 3
-    assert len(ds_result["time"]) == 2
-    assert len(ds_result["var_value"][0]) == 12
-
-    # with var names
-    ds_result = postdb.get_var_values_cartesian(
-        insert_data,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        var_names=["t2m"],
-    )
-    assert len(ds_result["latitude"]) == 2
-    assert len(ds_result["longitude"]) == 3
-    assert len(ds_result["time"]) == 1
-    assert len(ds_result["var_value"][0]) == 6
+    assert len(ds_result["latitude, longitude, var_value"]) == 6
+    values = ds_result["latitude, longitude, var_value"][0]
+    assert math.isclose(values[0], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[1], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)
 
     # test HTTP exceptions
     # test for missing time point
     with pytest.raises(HTTPException):
         postdb.get_var_values_cartesian(
             insert_data,
-            start_time_point=(2020, 1),
-            end_time_point=None,
-            var_names=None,
+            time_point=(2020, 1),
+            var_name=None,
         )
+    # test for missing variable name
     with pytest.raises(HTTPException):
         postdb.get_var_values_cartesian(
             insert_data,
-            start_time_point=(2020, 1),
-            end_time_point=None,
-            var_names=["non_existing_var"],
+            time_point=(2020, 1),
+            var_name=["non_existing_var"],
         )
 
 

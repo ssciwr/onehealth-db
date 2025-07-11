@@ -23,7 +23,6 @@ import pandas as pd
 import numpy as np
 import xarray as xr
 import time
-import datetime
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Type, Tuple, List
@@ -752,83 +751,69 @@ def sort_grid_points_get_ids(
 
 def get_var_values_cartesian(
     session: Session,
-    start_time_point: Tuple[int, int],
-    end_time_point: Tuple[int, int] | None = None,
-    var_names: None | List[str] = None,
+    time_point: Tuple[int, int],
+    var_name: None | str = None,
 ) -> dict:
     """Get variable values for a cartesian map.
 
     Args:
         session (Session): SQLAlchemy session object.
-        start_time_point (Tuple[int, int]): Start time point as (year, month).
-        end_time_point (Tuple[int, int] | None): End time point as (year, month).
-            If None, only the start time point is used.
-        var_names (None | List[str]): List of variable names to filter by.
-            If None, all variable types are used.
+        time_point (Tuple[int, int]): Date point as (year, month).
+        var_name (None | str): Variable name for which values should be returned.
+         If None, the default model values will be returned.
 
     Returns:
-        dict: a dict with (time, latitude, longitude, var_value) keys.
+        dict: a dict with (latitude, longitude, var_value) for the requested date.
     """
     # get the time points and their ids
-    time_points = get_time_points(session, start_time_point, end_time_point)
+    # we should put a plain request here to get only the specified time point and no
+    date_object = (
+        session.query(TimePoint)
+        .filter((TimePoint.year == time_point[0]) & (TimePoint.month == time_point[1]))
+        .first()
+    )
 
-    if not time_points:
-        print("No time points found in the specified range.")
+    if not date_object:
+        print("No time point found for the specified date.")
+        raise HTTPException(status_code=400, detail="Missing data for requested date.")
+
+    # get time id
+    time_id = date_object.id
+    # get the var type
+    if not var_name:
+        var_name = "t2m"  # default variable name
+    var_type = session.query(VarType).filter(VarType.name == var_name).first()
+    if not var_type:
+        print("No variable type found for the specified name.")
         raise HTTPException(
-            status_code=400, detail="Missing data for requested time point."
+            status_code=400, detail="Missing variable type for requested time point."
         )
 
-    # create a list of time points and their ids
-    time_values_datetime = [
-        datetime.date(year=tp.year, month=tp.month, day=1) for tp in time_points
-    ]
-    time_ids = {tp.id: tidx for tidx, tp in enumerate(time_points)}
-
-    # get all the grid points and their ids
-    grid_points = session.query(GridPoint).all()
+    # get the variable type id
+    var_id = var_type.id
+    # now query all variable values with their latitude and longitude for this time point
+    values = (
+        session.query(VarValue)
+        .filter(VarValue.time_id == time_id, VarValue.var_id == var_id)
+        .all()
+    )
+    # now get all the grid points associated with the values
+    grid_points = (
+        session.query(GridPoint)
+        .filter(GridPoint.id.in_([v.grid_id for v in values]))
+        .all()
+    )
     if not grid_points:
         print("No grid points found in the database.")
         raise HTTPException(
             status_code=400, detail="No grid points found in the database."
         )
-    # Sort and deduplicate latitudes and longitudes
-    grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
 
-    # get variable types and their ids
-    var_types = get_var_types(session, var_names)
-    if not var_types:
-        print("No variable types found in the specified names.")
-        raise HTTPException(
-            status_code=400, detail="Missing variable type for requested time point."
-        )
-
-    # get variable values for each grid point and time point
-    values_list = []
-    for vt in var_types:
-        values = (
-            session.query(VarValue)
-            .filter(
-                VarValue.grid_id.in_(grid_ids.keys()),
-                VarValue.time_id.in_(time_ids.keys()),
-                VarValue.var_id == vt.id,
-            )
-            .all()
-        )
-
-        values_list.append([])
-
-        # fill the values array with the variable values
-        for vv in values:
-            values_list[-1].append(vv.value)
-
-    mydict = {
-        "time": time_values_datetime,
-        "latitude": latitudes,
-        "longitude": longitudes,
-        "var_value": values_list,
-        "var_names": [vt.name for vt in var_types],
-        "var_units": [vt.unit for vt in var_types],
-    }
+    # create a list of tuples with (latitude, longitude, var_value)
+    values_list = [
+        (gp.latitude, gp.longitude, v.value) for v, gp in zip(values, grid_points)
+    ]
+    mydict = {"latitude, longitude, var_value": values_list}
     return mydict
 
 
