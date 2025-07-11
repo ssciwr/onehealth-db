@@ -504,7 +504,7 @@ def insert_var_values(
     time_id_map: dict,
     var_id_map: dict,
     to_monthly: bool = False,
-):
+) -> tuple[float, float]:
     """Insert variable values into the database.
 
     Args:
