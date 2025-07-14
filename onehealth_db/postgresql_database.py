@@ -808,12 +808,16 @@ def get_var_values_cartesian(
         raise HTTPException(
             status_code=400, detail="No grid points found in the database."
         )
-
     # create a list of tuples with (latitude, longitude, var_value)
     values_list = [
         (gp.latitude, gp.longitude, v.value) for v, gp in zip(values, grid_points)
     ]
     mydict = {"latitude, longitude, var_value": values_list}
+    with open("cartesian_grid_data_onehealth.json", "w") as f:
+        import json
+
+        json.dump(mydict, f, indent=4)
+        print("Data saved to cartesian_grid_data_onehealth.json")
     return mydict
 
 

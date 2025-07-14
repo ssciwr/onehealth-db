@@ -7,7 +7,9 @@ from typing import Annotated, Union
 import datetime
 import dotenv
 import os
+import logging
 
+logging.basicConfig(level=logging.DEBUG)
 
 # get the db url from dotenv
 dotenv.load_dotenv()
@@ -62,19 +64,23 @@ def db_status():
 
 @app.get("/cartesian")
 def get_cartesian(
-    session: SessionDep, requested_time_point: datetime.date
+    session: SessionDep,
+    requested_time_point: datetime.date,
+    requested_variable_value: str = None,
 ) -> Union[dict, None]:
-    # the frontend will request a variable over all lat, long values
+    # the frontend will request a variable over all available lat, long values for that variable
     # the date input is 2016-01-01 (a date object)
+    # the variable input is a matching string, ie "t2m" for temperature
+    # the variable name will be supplied via the model yaml files for each selected model
     if not isinstance(requested_time_point, datetime.date):
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
-    start_time = (requested_time_point.year, requested_time_point.month)
+    date_requested = (requested_time_point.year, requested_time_point.month)
     var_name = "t2m"
     try:
         var_value = db.get_var_values_cartesian(
             session,
-            start_time_point=start_time,
-            var_names=[var_name],
+            time_point=date_requested,
+            var_name=var_name,
         )
         return {"result": var_value}
     except Exception as e:
