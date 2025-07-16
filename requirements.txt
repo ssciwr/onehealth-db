@@ -1,10 +1,8 @@
-cdsapi
 xarray
 netcdf4
-cfgrib
-duckdb
 jupyter
 matplotlib
+tqdm
 geopandas
 sqlalchemy
 geoalchemy2
