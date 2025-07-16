@@ -117,13 +117,20 @@ def get_var_types_from_config(config: dict) -> list:
 
 
 def insert_var_values(
-    engine: engine.Engine, era5_land_path: Path = None, isimip_path: Path = None
+    engine: engine.Engine,
+    era5_land_path: Path | None = None,
+    isimip_path: Path | None = None,
+    r0_path: Path | None = None,
 ) -> int:
+    # somewhere we need to check that the paths are not None
+    # or do not allow them to be None
     era5_ds = xr.open_dataset(era5_land_path, chunks={})
     isimip_ds = xr.open_dataset(isimip_path, chunks={})
+    r0_ds = xr.open_dataset(r0_path, chunks={})
     # rechunk the dataset
     era5_ds = era5_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
     isimip_ds = isimip_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
+    r0_ds = r0_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
     # add grid points
     grid_point_session = db.create_session(engine)
     db.insert_grid_points(
@@ -154,6 +161,10 @@ def insert_var_values(
     _, _ = db.insert_var_values(
         engine, era5_ds, "tp", grid_id_map, time_id_map, var_type_id_map
     )
+    # add R0 values
+    _, _ = db.insert_var_values(
+        engine, r0_ds, "R0", grid_id_map, time_id_map, var_type_id_map
+    )
     # add population data
     _, _ = db.insert_var_values(
         engine,
@@ -179,6 +190,7 @@ def main() -> None:
     era5_land_path = None
     isimip_path = None
     shapefile_folder_path = None
+    r0_path = None
     # create the data lake structure if it does not exist
     for dir_name in config["datalake"].keys():
         create_directories(config["datalake"][dir_name])
@@ -213,6 +225,11 @@ def main() -> None:
                 Path(config["datalake"]["datadir_silver"]) / data["filename"]
             )
             print(f"ERA5 land data path: {era5_land_path}")
+        elif data["var_name"][0]["name"] == "R0":
+            # set the path to the R0 data
+            # this actually is gold level data
+            r0_path = Path(config["datalake"]["datadir_silver"]) / data["filename"]
+            print(f"R0 data path: {r0_path}")
         elif data["var_name"][0]["name"] == "total-population":
             # set the path to the ISIMIP data
             isimip_path = Path(config["datalake"]["datadir_silver"]) / data["filename"]
@@ -240,7 +257,9 @@ def main() -> None:
     db.insert_var_types(var_type_session, var_types)
     var_type_session.close()
     # insert the data
-    insert_var_values(engine, era5_land_path=era5_land_path, isimip_path=isimip_path)
+    insert_var_values(
+        engine, era5_land_path=era5_land_path, isimip_path=isimip_path, r0_path=r0_path
+    )
 
 
 if __name__ == "__main__":
