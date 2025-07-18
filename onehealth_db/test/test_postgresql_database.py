@@ -746,30 +746,12 @@ def test_get_nuts_regions(
 
     # test the function
     # normal case
-    result = postdb.get_nuts_regions(get_engine_with_tables, area=None)
+    result = postdb.get_nuts_regions(get_engine_with_tables)
     assert len(result) == 2
     assert result.loc[0, "nuts_id"] == "NUTS1"  # result is a geodataframe
     assert result.loc[0, "name_latn"] == "Test NUTS"
     assert result.loc[1, "nuts_id"] == "NUTS2"
     assert result.loc[1, "name_latn"] == "Test NUTS2"
-
-    # with area
-    result = postdb.get_nuts_regions(
-        get_engine_with_tables,
-        area=(1.0, 0.0, 0.0, 2.0),  # [N, W, S, E]
-    )
-    assert len(result) == 2
-    assert result.loc[0, "nuts_id"] == "NUTS1"
-    assert result.loc[0, "name_latn"] == "Test NUTS"
-    assert result.loc[1, "nuts_id"] == "NUTS2"
-    assert result.loc[1, "name_latn"] == "Test NUTS2"
-
-    # no nuts data
-    result = postdb.get_nuts_regions(
-        get_engine_with_tables,
-        area=(20.0, 20.0, 20.0, 20.0),  # [N, W, S, E]
-    )
-    assert result.empty
 
     # clean up
     get_session.query(postdb.NutsDef).delete()
@@ -861,149 +843,58 @@ def test_get_var_values_nuts(
 
     # test the function
     # normal case
-    rersult_gpd = postdb.get_var_values_nuts(
+    result_dict = postdb.get_var_values_nuts(
         get_engine_with_tables,
         get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=None,
-        var_names=None,
-        shapefile=None,
+        time_point=(2023, 1),
+        var_name=None,
     )
-    assert len(rersult_gpd) == 2
-    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
-    assert rersult_gpd.loc[0, "var_name"] == "t2m"
-    assert rersult_gpd.loc[0, "var_value"] == np.mean(
+    assert len(result_dict["NUTS id, var_value"]) == 2
+    assert result_dict["NUTS id, var_value"][0][0] == "NUTS1"
+    assert result_dict["NUTS id, var_value"][0][1] == np.mean(
         get_dataset.t2m[:, :2, 0]
     )  # dataset has coords lat lon time
-    assert rersult_gpd.loc[1, "nuts_id"] == "NUTS2"
-    assert rersult_gpd.loc[1, "var_name"] == "t2m"
-    assert rersult_gpd.loc[1, "var_value"] == np.mean(
+    assert result_dict["NUTS id, var_value"][1][0] == "NUTS2"
+    assert result_dict["NUTS id, var_value"][1][1] == np.mean(
         get_dataset.t2m[:, 1:, 0]
     )  # dataset has coords lat lon time
-    assert (
-        len(rersult_gpd.columns) == get_nuts_def_data.shape[1] + 3
-    )  # var_name, var_value, time
-
-    # with end time point
-    rersult_gpd = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        start_time_point=(2023, 1),
-        end_time_point=(2024, 1),
-        area=None,
-        var_names=None,
-        shapefile=None,
-    )
-    assert len(rersult_gpd) == 4
-    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
-    assert rersult_gpd.loc[0, "var_name"] == "t2m"
-    assert rersult_gpd.loc[0, "time"] == np.datetime64("2023-01-01", "ns")
-    assert rersult_gpd.loc[0, "var_value"] == np.mean(
-        get_dataset.t2m[:, :2, 0]
-    )  # dataset has coords lat lon time
-    assert rersult_gpd.loc[1, "nuts_id"] == "NUTS1"
-    assert rersult_gpd.loc[1, "time"] == np.datetime64("2024-01-01", "ns")
-    assert rersult_gpd.loc[1, "var_value"] == np.mean(
-        get_dataset.t2m[:, :2, 1]
-    )  # dataset has coords lat lon time
-
-    # with area
-    rersult_gpd = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=(0.5, 0.0, 0.0, 0.5),  # [N, W, S, E]
-        var_names=None,
-        shapefile=None,
-    )
-    assert len(rersult_gpd) == 1
-    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
-    assert rersult_gpd.loc[0, "var_name"] == "t2m"
-    assert rersult_gpd.loc[0, "var_value"] == np.mean(
-        get_dataset.t2m[:, :2, 0]
-    )  # dataset has coords lat lon time
-
     # with var names
-    rersult_gpd = postdb.get_var_values_nuts(
+    result_dict = postdb.get_var_values_nuts(
         get_engine_with_tables,
         get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=None,
-        var_names=["t2m"],
-        shapefile=None,
+        time_point=(2023, 1),
+        var_name="t2m",
     )
-    assert len(rersult_gpd) == 2
-    assert rersult_gpd.loc[0, "nuts_id"] == "NUTS1"
-
-    # with shapefile
-    rersult_gpd = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=None,
-        var_names=None,
-        shapefile=tmp_path / "nuts_var_values.shp",
-    )
-    assert len(rersult_gpd) == 2
-    check_results = gpd.read_file(tmp_path / "nuts_var_values.shp")
-    assert len(check_results) == 2
-    assert check_results.loc[0, "nuts_id"] == "NUTS1"
-    assert check_results.loc[0, "var_name"] == "t2m"
-    assert check_results.loc[0, "var_value"] == np.mean(
-        get_dataset.t2m[:, :2, 0]
-    )  # dataset has coords lat lon time
+    assert len(result_dict["NUTS id, var_value"]) == 2
+    assert result_dict["NUTS id, var_value"][0][0] == "NUTS1"
 
     # none cases
     # no time points
-    rersult_gpd = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        start_time_point=(2025, 1),
-        end_time_point=None,
-        area=None,
-        var_names=None,
-        shapefile=None,
-    )
-    assert rersult_gpd is None
-    # no nuts regions
-    rersult_gpd = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=(20.0, 20.0, 20.0, 20.0),  # [N, W, S, E]
-        var_names=None,
-        shapefile=None,
-    )
-    assert rersult_gpd is None
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_nuts(
+            get_engine_with_tables,
+            get_session,
+            time_point=(2025, 1),
+            var_name=None,
+        )
     # no var types
-    rersult_gpd = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=None,
-        var_names=["non_existing_var"],
-        shapefile=None,
-    )
-    assert rersult_gpd is None
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_nuts(
+            get_engine_with_tables,
+            get_session,
+            time_point=(2023, 1),
+            var_name="non_existing_var",
+        )
     # no var values
     get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
     get_session.commit()
-    rersult_gpd = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        start_time_point=(2023, 1),
-        end_time_point=None,
-        area=None,
-        var_names=None,
-        shapefile=None,
-    )
-    assert rersult_gpd is None
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_nuts(
+            get_engine_with_tables,
+            get_session,
+            time_point=(2023, 1),
+            var_name=None,
+        )
 
     # clean up
     get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
