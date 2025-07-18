@@ -84,7 +84,7 @@ def get_cartesian(
     if not isinstance(requested_time_point, datetime.date):
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
     date_requested = (requested_time_point.year, requested_time_point.month)
-    var_name = "t2m"
+    var_name = requested_variable_value
     try:
         var_value = db.get_var_values_cartesian(
             session,
