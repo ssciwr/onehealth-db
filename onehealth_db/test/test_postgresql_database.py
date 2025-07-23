@@ -36,7 +36,14 @@ def test_create_session(get_engine_with_tables):
 
 def get_missing_tables(engine):
     inspector = inspect(engine)
-    expected_tables = {"nuts_def", "grid_point", "time_point", "var_type", "var_value"}
+    expected_tables = {
+        "nuts_def",
+        "grid_point",
+        "time_point",
+        "var_type",
+        "var_value",
+        "var_value_nuts",
+    }
     existing_tables = set(inspector.get_table_names(schema="public"))
     missing_tables = expected_tables - existing_tables
     return missing_tables
@@ -127,7 +134,7 @@ def test_insert_nuts_def(
     assert result[1].name_latn == "Test NUTS2"
 
     # clean up
-    get_session.query(postdb.NutsDef).delete()
+    get_session.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
     get_session.commit()
 
 
@@ -790,7 +797,7 @@ def test_get_nuts_regions(
     assert result.empty
 
     # clean up
-    get_session.query(postdb.NutsDef).delete()
+    get_session.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
     get_session.commit()
 
 
