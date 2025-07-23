@@ -59,7 +59,7 @@ class NutsDef(Base):
     urbn_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     coast_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     geometry: Mapped[WKBElement] = mapped_column(
-        Geometry(geometry_type="POINT", srid=CRS)
+        Geometry(geometry_type="POLYGON", srid=CRS)
     )
 
 
@@ -154,6 +154,43 @@ class VarValue(Base):
             ["var_id"],
             ["var_type.id"],
             name="fk_var_id",
+            ondelete="CASCADE",
+        ),
+    )
+
+
+class VarValueNuts(Base):
+    """
+    Variable value table for storing variable values at specific
+    NUTS regions and time points.
+    """
+
+    __tablename__ = "var_value_nuts"
+
+    id: Mapped[int] = mapped_column(BigInteger(), primary_key=True, autoincrement=True)
+    nuts_id: Mapped[String] = mapped_column(String(), ForeignKey("nuts_def.nuts_id"))
+    time_id: Mapped[int] = mapped_column(Integer(), ForeignKey("time_point.id"))
+    var_id: Mapped[int] = mapped_column(Integer(), ForeignKey("var_type.id"))
+    value: Mapped[float] = mapped_column(Float())
+
+    __table_args__ = (
+        UniqueConstraint("time_id", "nuts_id", "var_id", name="uq_time_nuts_var"),
+        ForeignKeyConstraint(
+            ["nuts_id"],
+            ["nuts_def.nuts_id"],
+            name="fk_nuts_id",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["time_id"],
+            ["time_point.id"],
+            name="fk_time_id_nuts",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["var_id"],
+            ["var_type.id"],
+            name="fk_var_id_nuts",
             ondelete="CASCADE",
         ),
     )
@@ -266,9 +303,16 @@ def insert_nuts_def(engine: engine.Engine, shapefiles_path: Path):
             "COAST_TYPE": "coast_type",
         }
     )
-    nuts_data.to_postgis(
-        NutsDef.__tablename__, engine, if_exists="replace", index=False
-    )
+
+    # clean up the data first if nuts_def table already exists
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
+
+    # insert the data into the nuts_def table
+    # here we do not use replace for if_exists because
+    # the table var_value_nuts has a foreign key constraint
+    # to nuts_def, so append would be safer
+    nuts_data.to_postgis(NutsDef.__tablename__, engine, if_exists="append", index=False)
     print("NUTS definition data inserted.")
 
 
