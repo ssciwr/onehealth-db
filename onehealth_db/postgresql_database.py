@@ -1182,3 +1182,51 @@ def get_var_values_nuts(
         print(f"NUTS variable values saved to {shapefile}")
 
     return nuts_var_values
+
+
+def insert_var_value_nuts(
+    engine: engine.Engine,
+    ds: xr.Dataset,
+    time_id_map: dict,
+    var_name: str,
+    var_id_map: dict,
+) -> float:
+    """Insert variable values for NUTS regions into the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        ds (xr.Dataset): xarray dataset with dimensions (time, nuts_id).
+        time_id_map (dict): Mapping of time points to IDs.
+        var_name (str): Name of the variable to insert.
+        var_id_map (dict): Mapping of variable names to variable type IDs.
+
+    Returns:
+        float: The time taken to insert the variable values.
+    """
+    # get the variable id
+    var_id = var_id_map.get(var_name)
+    if var_id is None:
+        raise ValueError(f"Variable {var_name} not found in var_type table.")
+
+    # values of the variable
+    var_data = (
+        ds[var_name].dropna(dim="nuts_id", how="all").load()
+    )  # load data into memory
+
+    # using stack() from xarray to vectorize the data
+    stacked_var_data = var_data.stack(points=("time", "nuts_id"))
+    stacked_var_data = stacked_var_data.dropna("points")
+
+    # get values of each dim
+    time_vals = stacked_var_data["time"].values.astype("datetime64[ns]")
+    nuts_ids = stacked_var_data["nuts_id"].values
+
+    # create vectorized mapping
+    # normalize time before mapping as the time in isimip is 12:00:00
+    # TODO: find an optimal way to do this
+    get_time_id = np.vectorize(
+        lambda t: time_id_map.get(np.datetime64(pd.Timestamp(t).normalize(), "ns"))
+    )
+
+    # TODO: work still in progress
+    return time_vals, nuts_ids, get_time_id
