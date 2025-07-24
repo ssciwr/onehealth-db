@@ -1187,8 +1187,8 @@ def get_var_values_nuts(
 def insert_var_value_nuts(
     engine: engine.Engine,
     ds: xr.Dataset,
-    time_id_map: dict,
     var_name: str,
+    time_id_map: dict,
     var_id_map: dict,
 ) -> float:
     """Insert variable values for NUTS regions into the database.
@@ -1196,8 +1196,8 @@ def insert_var_value_nuts(
     Args:
         engine (engine.Engine): SQLAlchemy engine object.
         ds (xr.Dataset): xarray dataset with dimensions (time, nuts_id).
-        time_id_map (dict): Mapping of time points to IDs.
         var_name (str): Name of the variable to insert.
+        time_id_map (dict): Mapping of time points to IDs.
         var_id_map (dict): Mapping of variable names to variable type IDs.
 
     Returns:
@@ -1228,5 +1228,43 @@ def insert_var_value_nuts(
         lambda t: time_id_map.get(np.datetime64(pd.Timestamp(t).normalize(), "ns"))
     )
 
-    # TODO: work still in progress
-    return time_vals, nuts_ids, get_time_id
+    time_ids = get_time_id(time_vals)
+    values = stacked_var_data.values.astype(float)
+
+    # create a mask for valid values
+    masks = ~np.isnan(values)
+
+    # create bulk data for insertion
+    var_values = [
+        {
+            "nuts_id": str(nuts_id),
+            "time_id": int(time_id),
+            "var_id": int(var_id),
+            "value": float(value),
+        }
+        for nuts_id, time_id, value, mask in zip(nuts_ids, time_ids, values, masks)
+        if mask and (nuts_id is not None) and (time_id is not None)
+    ]
+
+    def insert_batch(batch):
+        """Insert a batch of data into the database."""
+        # create a new session for each batch
+        session = create_session(engine)
+        add_data_list_bulk(session, batch, VarValueNuts)
+        session.close()
+
+    print(f"Start inserting {var_name} values for NUTS in parallel...")
+    t_start_insert = time.time()
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
+        for i in range(0, len(var_values), BATCH_SIZE):
+            e_batch = i + BATCH_SIZE
+            batch = var_values[i:e_batch]
+            futures.append(executor.submit(insert_batch, batch))
+
+        for _ in tqdm(as_completed(futures), total=len(futures)):
+            pass
+
+    print(f"Values of {var_name} inserted into VarValueNuts.")
+    return t_start_insert
