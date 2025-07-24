@@ -869,9 +869,7 @@ def test_get_var_values_nuts(
     postdb.insert_var_types(get_session, var_type_data)
 
     # get the id maps
-    grid_id_map, time_id_map, var_id_map = retrieve_id_maps(
-        get_session, get_dataset, var_type_data
-    )
+    grid_id_map, time_id_map, var_id_map = postdb.get_id_maps(get_session)
 
     # insert var values
     postdb.insert_var_values(
@@ -1037,3 +1035,82 @@ def test_get_var_values_nuts(
     get_session.execute(text("TRUNCATE TABLE grid_point RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
     get_session.commit()
+
+
+def test_insert_var_value_nuts_no_var(
+    get_engine_with_tables, get_var_type_list, get_dataset, get_varnuts_dataset
+):
+    # get the id maps
+    session1 = postdb.create_session(get_engine_with_tables)
+    _, time_id_map, var_id_map = retrieve_id_maps(
+        session1, get_dataset, get_var_type_list
+    )
+    session1.close()
+
+    # error due to no t2m var type
+    with pytest.raises(ValueError):
+        postdb.insert_var_value_nuts(
+            get_engine_with_tables,
+            get_varnuts_dataset,
+            var_name="t2m",
+            time_id_map=time_id_map,
+            var_id_map=var_id_map,
+        )
+
+    # clean up
+    postdb.Base.metadata.drop_all(get_engine_with_tables)
+    postdb.Base.metadata.create_all(get_engine_with_tables)
+
+
+def test_insert_var_value_nuts(
+    get_engine_with_tables,
+    get_dataset,
+    get_varnuts_dataset,
+    get_nuts_def_data,
+    tmp_path,
+):
+    # create a sample NUTS shapefile
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
+
+    # insert NUTS definitions
+    postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
+
+    var_type_data = [
+        {
+            "name": "t2m_mean",
+            "unit": "K",
+            "description": "2m temperature",
+        }
+    ]
+
+    # get the id maps
+    session1 = postdb.create_session(get_engine_with_tables)
+    _, time_id_map, var_id_map = retrieve_id_maps(session1, get_dataset, var_type_data)
+    session1.close()
+
+    # insert var value
+    postdb.insert_var_value_nuts(
+        get_engine_with_tables,
+        get_varnuts_dataset,
+        var_name="t2m_mean",
+        time_id_map=time_id_map,
+        var_id_map=var_id_map,
+    )
+
+    # check if the data is inserted correctly
+    session2 = postdb.create_session(get_engine_with_tables)
+    result = session2.query(postdb.VarValueNuts).all()
+    assert len(result) == 4
+    assert result[0].nuts_id == "NUTS1"
+    assert result[0].time_id == 1
+    assert result[0].var_id == 1
+    assert math.isclose(
+        result[0].value, get_varnuts_dataset.t2m_mean[0, 0], abs_tol=1e-5
+    )
+    session2.close()
+
+    # clean up
+    postdb.Base.metadata.drop_all(get_engine_with_tables)
+    postdb.Base.metadata.create_all(get_engine_with_tables)
