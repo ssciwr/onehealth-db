@@ -28,6 +28,14 @@ data_to_fetch:
     host: "heibox"
     url: "https://heibox.uni-heidelberg.de/f/51f76c355c944f96a82f/?dl=1"
     filehash: "246a5e1a3901380f194879cff5a65bbac86c9c906a7871027a3a918dbe6c7e46"
+  - var_name: 
+    - name: "R0"
+      unit: "1"
+      description: "Transmission suitability for West Nile virus for 2016 and 2017."
+    filename: "output_jmodel_europe.nc"
+    host: "heibox"
+    url: "https://heibox.uni-heidelberg.de/f/858da704c83d49e0a6d6/?dl=1"
+    filehash: "00f2368609ca6402b504e17d0d292784c7fd90c21d1f832d8d8448e76c33f6b9"
 datalake:
   datadir_bronze: ".data_onehealth_db/bronze"
   datadir_silver: ".data_onehealth_db/silver"
