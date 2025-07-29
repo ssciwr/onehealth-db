@@ -59,7 +59,7 @@ class NutsDef(Base):
     urbn_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     coast_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     geometry: Mapped[WKBElement] = mapped_column(
-        Geometry(geometry_type="POINT", srid=CRS)
+        Geometry(geometry_type="POLYGON", srid=CRS)
     )
 
 
@@ -154,6 +154,43 @@ class VarValue(Base):
             ["var_id"],
             ["var_type.id"],
             name="fk_var_id",
+            ondelete="CASCADE",
+        ),
+    )
+
+
+class VarValueNuts(Base):
+    """
+    Variable value table for storing variable values at specific
+    NUTS regions and time points.
+    """
+
+    __tablename__ = "var_value_nuts"
+
+    id: Mapped[int] = mapped_column(BigInteger(), primary_key=True, autoincrement=True)
+    nuts_id: Mapped[String] = mapped_column(String(), ForeignKey("nuts_def.nuts_id"))
+    time_id: Mapped[int] = mapped_column(Integer(), ForeignKey("time_point.id"))
+    var_id: Mapped[int] = mapped_column(Integer(), ForeignKey("var_type.id"))
+    value: Mapped[float] = mapped_column(Float())
+
+    __table_args__ = (
+        UniqueConstraint("time_id", "nuts_id", "var_id", name="uq_time_nuts_var"),
+        ForeignKeyConstraint(
+            ["nuts_id"],
+            ["nuts_def.nuts_id"],
+            name="fk_nuts_id",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["time_id"],
+            ["time_point.id"],
+            name="fk_time_id_nuts",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["var_id"],
+            ["var_type.id"],
+            name="fk_var_id_nuts",
             ondelete="CASCADE",
         ),
     )
@@ -266,9 +303,16 @@ def insert_nuts_def(engine: engine.Engine, shapefiles_path: Path):
             "COAST_TYPE": "coast_type",
         }
     )
-    nuts_data.to_postgis(
-        NutsDef.__tablename__, engine, if_exists="replace", index=False
-    )
+
+    # clean up the data first if nuts_def table already exists
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
+
+    # insert the data into the nuts_def table
+    # here we do not use replace for if_exists because
+    # the table var_value_nuts has a foreign key constraint
+    # to nuts_def, so append would be safer
+    nuts_data.to_postgis(NutsDef.__tablename__, engine, if_exists="append", index=False)
     print("NUTS definition data inserted.")
 
 
@@ -1138,3 +1182,89 @@ def get_var_values_nuts(
         print(f"NUTS variable values saved to {shapefile}")
 
     return nuts_var_values
+
+
+def insert_var_value_nuts(
+    engine: engine.Engine,
+    ds: xr.Dataset,
+    var_name: str,
+    time_id_map: dict,
+    var_id_map: dict,
+) -> float:
+    """Insert variable values for NUTS regions into the database.
+
+    Args:
+        engine (engine.Engine): SQLAlchemy engine object.
+        ds (xr.Dataset): xarray dataset with dimensions (time, nuts_id).
+        var_name (str): Name of the variable to insert.
+        time_id_map (dict): Mapping of time points to IDs.
+        var_id_map (dict): Mapping of variable names to variable type IDs.
+
+    Returns:
+        float: The time taken to insert the variable values.
+    """
+    # get the variable id
+    var_id = var_id_map.get(var_name)
+    if var_id is None:
+        raise ValueError(f"Variable {var_name} not found in var_type table.")
+
+    # values of the variable
+    var_data = (
+        ds[var_name].dropna(dim="nuts_id", how="all").load()
+    )  # load data into memory
+
+    # using stack() from xarray to vectorize the data
+    stacked_var_data = var_data.stack(points=("time", "nuts_id"))
+    stacked_var_data = stacked_var_data.dropna("points")
+
+    # get values of each dim
+    time_vals = stacked_var_data["time"].values.astype("datetime64[ns]")
+    nuts_ids = stacked_var_data["nuts_id"].values
+
+    # create vectorized mapping
+    # normalize time before mapping as the time in isimip is 12:00:00
+    # TODO: find an optimal way to do this
+    get_time_id = np.vectorize(
+        lambda t: time_id_map.get(np.datetime64(pd.Timestamp(t).normalize(), "ns"))
+    )
+
+    time_ids = get_time_id(time_vals)
+    values = stacked_var_data.values.astype(float)
+
+    # create a mask for valid values
+    masks = ~np.isnan(values)
+
+    # create bulk data for insertion
+    var_values = [
+        {
+            "nuts_id": str(nuts_id),
+            "time_id": int(time_id),
+            "var_id": int(var_id),
+            "value": float(value),
+        }
+        for nuts_id, time_id, value, mask in zip(nuts_ids, time_ids, values, masks)
+        if mask and (nuts_id is not None) and (time_id is not None)
+    ]
+
+    def insert_batch(batch):
+        """Insert a batch of data into the database."""
+        # create a new session for each batch
+        session = create_session(engine)
+        add_data_list_bulk(session, batch, VarValueNuts)
+        session.close()
+
+    print(f"Start inserting {var_name} values for NUTS in parallel...")
+    t_start_insert = time.time()
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = []
+        for i in range(0, len(var_values), BATCH_SIZE):
+            e_batch = i + BATCH_SIZE
+            batch = var_values[i:e_batch]
+            futures.append(executor.submit(insert_batch, batch))
+
+        for _ in tqdm(as_completed(futures), total=len(futures)):
+            pass
+
+    print(f"Values of {var_name} inserted into VarValueNuts.")
+    return t_start_insert
