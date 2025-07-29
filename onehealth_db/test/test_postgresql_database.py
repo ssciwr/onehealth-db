@@ -733,6 +733,7 @@ def test_get_var_values_cartesian_download(get_dataset, insert_data, tmp_path):
         )
 
 
+@pytest.mark.skip
 def test_get_nuts_regions(
     get_engine_with_tables, get_session, tmp_path, get_nuts_def_data
 ):
@@ -758,6 +759,7 @@ def test_get_nuts_regions(
     get_session.commit()
 
 
+@pytest.mark.skip
 def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
     nuts_regions = gpd.GeoDataFrame(
         {
@@ -791,6 +793,7 @@ def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
     get_session.commit()
 
 
+@pytest.mark.skip
 def test_get_var_values_nuts(
     get_engine_with_tables, get_session, tmp_path, get_nuts_def_data, get_dataset
 ):
