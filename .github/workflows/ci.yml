@@ -44,7 +44,7 @@ jobs:
         docker image prune -f || true
         docker volume prune -f || true
         docker network prune -f || true
-        docker compose up -d
+        docker compose up -d db
         # Wait for the database to be ready instead of using a fixed sleep
         echo "Waiting for database to be ready..."
         timeout 20s bash -c 'until docker exec $(docker compose ps -q db) pg_isready -U postgres -d onehealth_db; do sleep 1; done'
