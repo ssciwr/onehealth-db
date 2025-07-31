@@ -19,11 +19,9 @@ services:
     image: postgis/postgis:17-3.5
     restart: always  
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=onehealth_db
-    ports:
-      - "5432:5432"
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -43,16 +41,14 @@ services:
       frontend:
         condition: service_started
     environment:
-      - DB_URL=postgresql://postgres:postgres@db:5432/onehealth_db
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - WAIT_FOR_DB=true
+      - DB_URL=${DB_URL}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - WAIT_FOR_DB=${WAIT_FOR_DB}
     volumes:
       - ./production.yaml:/onehealth_db/production.yaml
       - ./onehealth_db:/onehealth_db/onehealth_db  # For development hot reload
-    ports:
-      - "8000:8000"
     command: ["api"]  # Run FastAPI server
     restart: "no"
     networks:
@@ -65,11 +61,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      - DB_URL=postgresql://postgres:postgres@db:5432/onehealth_db
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - WAIT_FOR_DB=true
+      - DB_URL=${DB_URL}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - WAIT_FOR_DB=${WAIT_FOR_DB}
     volumes:
       - ./production.yaml:/onehealth_db/production.yaml
     command: ["production"]
