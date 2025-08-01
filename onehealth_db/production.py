@@ -116,14 +116,26 @@ def get_var_types_from_config(config: dict) -> list:
     return var_types
 
 
+def check_paths(paths: list[Path | None]) -> None:
+    """Check that the paths are not None."""
+    for path in paths:
+        if path is None:
+            raise ValueError(
+                "One of the paths is None, please check your configuration."
+            )
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"File not found at {path}. Please check your configuration."
+            )
+
+
 def insert_var_values(
     engine: engine.Engine,
     era5_land_path: Path | None = None,
     isimip_path: Path | None = None,
     r0_path: Path | None = None,
 ) -> int:
-    # somewhere we need to check that the paths are not None
-    # or do not allow them to be None
+    check_paths([era5_land_path, isimip_path, r0_path])
     era5_ds = xr.open_dataset(era5_land_path, chunks={})
     isimip_ds = xr.open_dataset(isimip_path, chunks={})
     r0_ds = xr.open_dataset(r0_path, chunks={})

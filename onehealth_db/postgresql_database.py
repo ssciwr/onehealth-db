@@ -813,11 +813,6 @@ def get_var_values_cartesian(
         (gp.latitude, gp.longitude, v.value) for v, gp in zip(values, grid_points)
     ]
     mydict = {"latitude, longitude, var_value": values_list}
-    with open("cartesian_grid_data_onehealth.json", "w") as f:
-        import json
-
-        json.dump(mydict, f, indent=4)
-        print("Data saved to cartesian_grid_data_onehealth.json")
     return mydict
 
 
@@ -987,6 +982,7 @@ def get_grid_ids_in_nuts(
     return sorted(set(filtered_grid_points_gdf["id"].tolist()))
 
 
+# TODO refactor
 def get_var_values_nuts(
     engine: engine.Engine,
     session: Session,

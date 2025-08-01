@@ -622,7 +622,7 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
         postdb.get_var_values_cartesian(
             insert_data,
             time_point=(2020, 1),
-            var_name=["non_existing_var"],
+            var_name="non_existing_var",
         )
 
 

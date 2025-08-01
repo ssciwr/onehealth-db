@@ -109,6 +109,22 @@ def test_get_var_types_from_config():
     assert var_types[1]["description"] == "Total population"
 
 
+def test_check_paths(tmp_path: Path):
+    # Test that the check_paths function raises an error for None paths
+    with pytest.raises(ValueError):
+        prod.check_paths([None, None])
+
+    # Test that the check_paths function raises an error for non-existent files
+    with pytest.raises(FileNotFoundError):
+        prod.check_paths([Path("non_existent_file.nc")])
+
+    # Test that the check_paths function does not raise an error for valid paths
+    valid_path = tmp_path / "test_data.nc"
+    valid_path.touch()  # Create a dummy file for testing
+    prod.check_paths([valid_path])
+    valid_path.unlink()  # Clean up the dummy file
+
+
 @pytest.mark.skip(
     reason="This test requires a lot of resources and is not suitable for CI."
 )
