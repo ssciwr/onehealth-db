@@ -9,6 +9,7 @@ import datetime
 import dotenv
 import os
 import logging
+import ipaddress
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -21,6 +22,25 @@ db_url = os.environ.get("DB_URL")
 if not db_url:
     raise ValueError("DB_URL environment variable is not set.")
 engine = create_engine(db_url)
+
+# get the IP address from the environment variable
+ip_address = os.environ.get("IP_ADDRESS")
+# check that the IP address is a string
+if not isinstance(ip_address, str):
+    raise ValueError("IP_ADDRESS environment variable must be a string.")
+try:
+    ipaddress.IPv4Address(ip_address)
+except Exception:
+    raise ValueError(
+        f"IP_ADDRESS environment variable is not a valid IPv4 address: {ip_address}"
+    )
+allowed_origins = [
+    f"http://{ip_address}",
+    "http://localhost",
+    "http://127.0.0.1",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 
 @asynccontextmanager
@@ -50,7 +70,7 @@ app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     # update this to https later when using ssl
-    allow_origins=["http://129.206.4.157", "http://localhost", "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
