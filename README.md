@@ -16,7 +16,8 @@ The platform includes four main components: [webserver/frontend](https://github.
 **Further information:**
 
 * [About](docs/about.md): Information about the project, research group, and development group
-* [Data Lake & Database](docs/datalake_database.md): How data is preprocessed, processed and stored in database
+* [Data Lake & Database](docs/datalake_database.md): How data is preprocessed, processed and stored in the database
+* [Database deployment](docs/deployment.md): How the complete system is deployed in development and in production
 * [Issues](docs/issues.md): Some notes for running the package and further issues
 * [Contact](docs/contact.md): Contact information of relevant groups
 <!--intro-end-->

@@ -16,6 +16,7 @@ nav:
     - License: license.md
   - About: about.md
   - Data Lake & Database: datalake_database.md
+  - Deployment: deployment.md
   - References:
     - Package Modules: reference/
     - Demonstration Notebooks:
