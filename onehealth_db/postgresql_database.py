@@ -229,7 +229,6 @@ def initialize_database(db_url: str, replace: bool = False):
         create_tables(engine)
 
     print("Database initialized successfully.")
-    print(db_url)
 
     return engine
 
