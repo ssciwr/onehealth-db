@@ -593,7 +593,6 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
     )
     assert len(ds_result["latitude, longitude, var_value"]) == 6
     values = ds_result["latitude, longitude, var_value"][0]
-    print(values[0])
     assert math.isclose(values[0], 10.0, abs_tol=1e-5)
     assert math.isclose(values[1], 10.0, abs_tol=1e-5)
     assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)

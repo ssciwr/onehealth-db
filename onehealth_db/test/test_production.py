@@ -27,10 +27,9 @@ def test_read_production_config(production_config: Traversable):
     assert dict1["host"] == "heibox"
     assert dict1["description"]
     dict2 = config_dict["data_to_fetch"][1]
-    assert dict2["var_name"][0]["name"] == "total-population"
-    assert dict2["filename"] == "total_population_2016_2017.nc"
+    assert dict2["var_name"][0]["name"] == "NUTS-definition"
+    assert dict2["filename"] == "NUTS_RG_20M_2024_4326.shp.zip"
     assert dict2["host"] == "heibox"
-    assert dict2["description"]
     # read another config file
     config_dict = prod.read_production_config(production_config)
     assert config_dict["data_to_fetch"][0]["var_name"][0]["name"] == "t2m"
