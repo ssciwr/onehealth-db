@@ -34,10 +34,10 @@ services:
 
   # FastAPI Application service (Stage 2)
   api:
-    image: onehealth-backend
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
+    image: ghcr.io/ssciwr/onehealth-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     depends_on:
       db:
         condition: service_healthy
@@ -59,10 +59,10 @@ services:
     profiles: ["api"]
 
   production-runner:
-    image: onehealth-backend
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
+    image: ghcr.io/ssciwr/onehealth-backend:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     depends_on:
       db:
         condition: service_healthy

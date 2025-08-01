@@ -6,6 +6,7 @@ hide:
 
 # Deployment of the database, API and frontend
 The system is set up using [docker compose](https://docs.docker.com/compose/). There are different containers spun up using `docker compose`:
+
 - The postgresql database. This uses the public `postgis/postgis:17-3.5` image.
 - The frontend. This uses the docker image as pushed to GHCR, `ghcr.io/ssciwr/onehealth-map-frontend:<tag>`, where `<tag>` is replaced by the version number, `latest` or the branch name.
 - The Python backend. This contains both the ORM for the database and API, to process requests to the database from the frontend, but also the data feeding into the database. This uses the docker image as pushed to GHCR, `ghcr.io/ssciwr/onehealth-db:<tag>`, where `<tag>` is replaced by the version number, `latest` or the branch name; or can use a locally built image. The reason to supply a locally built image would be, for example, if one where to provide a changed config for the data feeding into the database, to include more or different data.
