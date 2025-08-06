@@ -55,7 +55,7 @@ This will build the image locally. In the `docker-compose.yaml` file, you need t
 ```
 docker image tag onehealth-backend ghcr.io/ssciwr/onehealth-backend:latest
 ```
-This image can be pushed th GHCR (provided, you have set your `CR_PAT` key in your local environment):
+This image can be pushed to GHCR (provided, you have set your `CR_PAT` key in your local environment):
 ```
 docker push ghcr.io/ssciwr/onehealth-backend:latest
 ```
