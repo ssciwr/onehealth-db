@@ -1,7 +1,7 @@
 pre-commit
 pytest
 ruff
-mkdocs-material==9.6.15
+mkdocs-material==9.6.18
 mkdocs-include-markdown-plugin==7.1.6
 mkdocs-glightbox==0.4.0
 mkdocstrings-python==1.16.12
