@@ -5,7 +5,7 @@ hide:
 ---
 
 # Deployment of the database, API and frontend
-The system is set up using [docker compose](https://docs.docker.com/compose/). There are different containers spun up using `docker compose`:
+The system is set up using [docker compose](https://docs.docker.com/compose/). These require adequate Github permissions/tokens for the GHCR images. There are different containers spun up using `docker compose`:
 
 - The postgresql database. This uses the public `postgis/postgis:17-3.5` image.
 - The frontend. This uses the docker image as pushed to GHCR, `ghcr.io/ssciwr/onehealth-map-frontend:<tag>`, where `<tag>` is replaced by the version number, `latest` or the branch name.
@@ -45,6 +45,24 @@ If you know what you are doing, and want to test the API directly, you can open 
     - "8000:8000"
 ```
 Similarly you can expose the database, to test the connectivity from outside of the docker network.
+
+### Alternative minimal container local development
+In order to run just the database and the API, if for example you lack Github permissions to get tokens for the Dockercompose to run, you can follow this three step procedure:
+Here are the commands to run the OneHealth DB backend, which the frontend connects to:
+
+From `onehealth-db/` folder:
+
+##### 1. Start the database we will connect to:
+
+`docker run -d --name postgres\_onehealth -p 5432:5432 -e POSTGRES\_PASSWORD=postgres -e POSTGRES\_DB=onehealth\_db postgis/postgis:17-3.5`
+
+##### 2. Start the API using the Dockerfile:
+
+`docker run --name onehealth\_api -p 8000:8000 --link postgres\_onehealth:db -e IP\_ADDRESS=1.1.1.1 -e DB\_URL=postgresql+psycopg2://postgres:postgres@db:5432/onehealth\_db onehealth-db`
+
+##### 3. Fill the API with mock data - Run the "production.py" script to generate mock data
+
+`docker exec -it onehealth\_api python3 /onehealth\_db/production.py`
 
 ### Building the image locally 
 To build the docker image locally, i.e. for a changed database config file, execute
