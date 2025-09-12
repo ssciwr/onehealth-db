@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir .
 
 
 # Create entrypoint script for flexibility
-RUN cat > /onehealth_db/entrypoint.sh << 'EOF'
+RUN cat > /onehealth_db/entrypoint.sh <<'EOF'
 #!/bin/bash
 # Execute the requested command
 case "$1" in
