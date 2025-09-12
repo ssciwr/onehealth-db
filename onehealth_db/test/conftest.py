@@ -196,9 +196,9 @@ def get_varnuts_dataset():
     data = rng.random((2, 2)) * 200
     data_array = xr.DataArray(
         data,
-        dims=["nuts_id", "time"],
+        dims=["NUTS_ID", "time"],
         coords={
-            "nuts_id": ["NUTS1", "NUTS2"],
+            "NUTS_ID": ["NUTS1", "NUTS2"],
             "time": [
                 np.datetime64("2023-01-01", "ns"),
                 np.datetime64("2024-01-01", "ns"),

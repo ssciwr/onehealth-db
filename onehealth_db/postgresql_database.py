@@ -59,7 +59,7 @@ class NutsDef(Base):
     urbn_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     coast_type: Mapped[Float] = mapped_column(Float(), nullable=True)
     geometry: Mapped[WKBElement] = mapped_column(
-        Geometry(geometry_type="POLYGON", srid=CRS)
+        Geometry(geometry_type="MULTIPOLYGON", srid=CRS)
     )
 
 
@@ -203,7 +203,8 @@ def install_postgis(engine: engine.Engine):
     Args:
         engine (engine.Engine): SQLAlchemy engine object.
     """
-    with engine.connect() as conn:
+    # use begin() to commit the transaction when operation is successful
+    with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
         print("PostGIS extension installed.")
 
@@ -1195,7 +1196,7 @@ def insert_var_value_nuts(
 
     Args:
         engine (engine.Engine): SQLAlchemy engine object.
-        ds (xr.Dataset): xarray dataset with dimensions (time, nuts_id).
+        ds (xr.Dataset): xarray dataset with dimensions (time, NUTS_ID).
         var_name (str): Name of the variable to insert.
         time_id_map (dict): Mapping of time points to IDs.
         var_id_map (dict): Mapping of variable names to variable type IDs.
@@ -1210,16 +1211,16 @@ def insert_var_value_nuts(
 
     # values of the variable
     var_data = (
-        ds[var_name].dropna(dim="nuts_id", how="all").load()
+        ds[var_name].dropna(dim="NUTS_ID", how="all").load()
     )  # load data into memory
 
     # using stack() from xarray to vectorize the data
-    stacked_var_data = var_data.stack(points=("time", "nuts_id"))
+    stacked_var_data = var_data.stack(points=("time", "NUTS_ID"))
     stacked_var_data = stacked_var_data.dropna("points")
 
     # get values of each dim
     time_vals = stacked_var_data["time"].values.astype("datetime64[ns]")
-    nuts_ids = stacked_var_data["nuts_id"].values
+    nuts_ids = stacked_var_data["NUTS_ID"].values
 
     # create vectorized mapping
     # normalize time before mapping as the time in isimip is 12:00:00
