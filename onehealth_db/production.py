@@ -116,14 +116,30 @@ def get_var_types_from_config(config: dict) -> list:
     return var_types
 
 
+def check_paths(paths: list[Path | None]) -> None:
+    """Check that the paths are not None."""
+    for path in paths:
+        if path is None:
+            raise ValueError(
+                "One of the paths is None, please check your configuration."
+            )
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"File not found at {path}. Please check your configuration."
+            )
+
+
 def insert_var_values(
-    engine: engine.Engine, era5_land_path: Path = None, isimip_path: Path = None
+    engine: engine.Engine,
+    era5_land_path: Path | None = None,
+    r0_path: Path | None = None,
 ) -> int:
+    check_paths([era5_land_path, r0_path])
     era5_ds = xr.open_dataset(era5_land_path, chunks={})
-    isimip_ds = xr.open_dataset(isimip_path, chunks={})
+    r0_ds = xr.open_dataset(r0_path, chunks={})
     # rechunk the dataset
     era5_ds = era5_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
-    isimip_ds = isimip_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
+    r0_ds = r0_ds.chunk({"time": 1, "latitude": 180, "longitude": 360})
     # add grid points
     grid_point_session = db.create_session(engine)
     db.insert_grid_points(
@@ -138,7 +154,6 @@ def insert_var_values(
         time_point_session,
         time_point_data=[
             (era5_ds.time.to_numpy(), False),
-            (isimip_ds.time.to_numpy(), True),
         ],
     )  # True means yearly data
     time_point_session.close()
@@ -150,19 +165,9 @@ def insert_var_values(
     _, _ = db.insert_var_values(
         engine, era5_ds, "t2m", grid_id_map, time_id_map, var_type_id_map
     )
-    # add total precipitation values
+    # add R0 values
     _, _ = db.insert_var_values(
-        engine, era5_ds, "tp", grid_id_map, time_id_map, var_type_id_map
-    )
-    # add population data
-    _, _ = db.insert_var_values(
-        engine,
-        isimip_ds,
-        "total-population",
-        grid_id_map,
-        time_id_map,
-        var_type_id_map,
-        to_monthly=False,
+        engine, r0_ds, "R0", grid_id_map, time_id_map, var_type_id_map
     )
     return 0
 
@@ -177,8 +182,8 @@ def main() -> None:
     # set up production database and data lake using the provided config
     config = read_production_config()
     era5_land_path = None
-    isimip_path = None
     shapefile_folder_path = None
+    r0_path = None
     # create the data lake structure if it does not exist
     for dir_name in config["datalake"].keys():
         create_directories(config["datalake"][dir_name])
@@ -213,10 +218,11 @@ def main() -> None:
                 Path(config["datalake"]["datadir_silver"]) / data["filename"]
             )
             print(f"ERA5 land data path: {era5_land_path}")
-        elif data["var_name"][0]["name"] == "total-population":
-            # set the path to the ISIMIP data
-            isimip_path = Path(config["datalake"]["datadir_silver"]) / data["filename"]
-            print(f"ISIMIP population data path: {isimip_path}")
+        elif data["var_name"][0]["name"] == "R0":
+            # set the path to the R0 data
+            # this actually is gold level data
+            r0_path = Path(config["datalake"]["datadir_silver"]) / data["filename"]
+            print(f"R0 data path: {r0_path}")
         elif data["var_name"][0]["name"] == "NUTS-definition":
             # extract file and set the path to the NUTS shapefiles
             shapefile_path = Path(config["datalake"]["datadir_silver"])
@@ -240,7 +246,7 @@ def main() -> None:
     db.insert_var_types(var_type_session, var_types)
     var_type_session.close()
     # insert the data
-    insert_var_values(engine, era5_land_path=era5_land_path, isimip_path=isimip_path)
+    insert_var_values(engine, era5_land_path=era5_land_path, r0_path=r0_path)
 
 
 if __name__ == "__main__":
