@@ -45,7 +45,7 @@ def test_read_production_config(production_config: Traversable):
 def test_get_production_data(tmp_path: Path):
     filename = "test_download.md"
     filehash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    url = "https://heibox.uni-heidelberg.de/f/264a47e3aa484946b8f0/?dl=1"
+    url = "https://heibox.uni-heidelberg.de/f/9641b5bf547b4d97995f/?dl=1"
     outputdir = tmp_path / "test_download"
     outputdir.mkdir(parents=True, exist_ok=True)
     completion_code = prod.get_production_data(url, filename, filehash, outputdir)
