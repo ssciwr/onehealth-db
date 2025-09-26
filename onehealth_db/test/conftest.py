@@ -188,3 +188,22 @@ def get_dataset():
     )
     dataset = xr.Dataset({"t2m": data_array})
     return dataset
+
+
+@pytest.fixture
+def get_varnuts_dataset():
+    rng = np.random.default_rng(42)
+    data = rng.random((2, 2)) * 200
+    data_array = xr.DataArray(
+        data,
+        dims=["NUTS_ID", "time"],
+        coords={
+            "NUTS_ID": ["NUTS1", "NUTS2"],
+            "time": [
+                np.datetime64("2023-01-01", "ns"),
+                np.datetime64("2024-01-01", "ns"),
+            ],
+        },
+    )
+    dataset = xr.Dataset({"t2m_mean": data_array})
+    return dataset
