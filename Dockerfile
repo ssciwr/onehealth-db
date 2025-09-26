@@ -9,14 +9,14 @@ FROM python:3.11-slim AS application
 
 # Install system dependencies for PostgreSQL client and geospatial libraries
 RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    libpq-dev \
-    gcc \
-    g++ \
-    libgdal-dev \
-    libproj-dev \
-    libgeos-dev \
     curl \
+    g++ \
+    gcc \
+    libgdal-dev \
+    libgeos-dev \
+    libpq-dev \
+    libproj-dev \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy files and install Python dependencies
@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir .
 
 
 # Create entrypoint script for flexibility
-RUN cat > /onehealth_db/entrypoint.sh << 'EOF'
+RUN cat > /onehealth_db/entrypoint.sh <<'EOF'
 #!/bin/bash
 # Execute the requested command
 case "$1" in
