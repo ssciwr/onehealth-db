@@ -2,8 +2,8 @@ pre-commit
 pytest
 ruff
 mkdocs-material==9.6.20
+dependabot/pip/mkdocs-glightbox-0.5.1
 mkdocs-include-markdown-plugin==7.1.8
-mkdocs-glightbox==0.4.0
 mkdocstrings-python==1.18.2
 mkdocs-jupyter==0.25.1
 mkdocs-gen-files==0.5.0
