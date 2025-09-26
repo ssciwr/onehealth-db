@@ -489,6 +489,66 @@ def test_get_var_value(get_session):
     get_session.commit()
 
 
+def test_get_var_value_nuts(
+    get_engine_with_tables,
+    get_dataset,
+    get_session,
+    tmp_path,
+    get_nuts_def_data,
+    get_varnuts_dataset,
+):
+    # create a sample NUTS shapefile
+    nuts_path = tmp_path / "nuts_def.shp"
+    gdf_nuts_data = get_nuts_def_data
+    gdf_nuts_data.to_file(nuts_path, driver="ESRI Shapefile")
+
+    # insert NUTS definitions
+    postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
+
+    # sample data
+    time_point = postdb.TimePoint(year=2023, month=1, day=1)
+    var_type = postdb.VarType(name="t2m", unit="K", description="2m temperature")
+    var_value = postdb.VarValueNuts(
+        nuts_id="NUTS1",
+        time_id=1,
+        var_id=1,
+        value=300.0,
+    )
+    get_session.add(time_point)
+    get_session.add(var_type)
+    get_session.add(var_value)
+    get_session.commit()
+
+    # test the function
+    result = postdb.get_var_value_nuts(
+        get_session,
+        str(var_type.name),
+        "NUTS1",
+        time_point.year,
+        time_point.month,
+        time_point.day,
+    )
+    assert result == var_value.value
+
+    # None case
+    result = postdb.get_var_value_nuts(
+        get_session,
+        "non_existing_var",
+        "NUTS1",
+        time_point.year,
+        time_point.month,
+        time_point.day,
+    )
+    assert result is None
+
+    # clean up
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
+    get_session.execute(text("TRUNCATE TABLE nuts_def RESTART IDENTITY CASCADE"))
+    get_session.commit()
+
+
 def test_get_time_points(get_session, get_dataset):
     # insert time points
     postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])

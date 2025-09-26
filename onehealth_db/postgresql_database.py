@@ -690,6 +690,52 @@ def get_var_value(
     return result.value if result else None
 
 
+def get_var_value_nuts(
+    session: Session,
+    var_name: str,
+    nuts_region: str,
+    year: int,
+    month: int,
+    day: int,
+) -> float | int | str | None:
+    """Get variable value from the database.
+
+    Args:
+        session (Session): SQLAlchemy session object.
+        var_name (str): Name of the variable to retrieve.
+        nuts_region (str): NUTS region code.
+        year (int): Year of the time point.
+        month (int): Month of the time point.
+        day (int): Day of the time point.
+
+    Returns:
+        float | int | str | None: Value of the variable at
+            the specified grid point and time point.
+    """
+    if day != 1:
+        print(
+            "The current database only supports monthly data."
+            "Retieving data for the first day of the month..."
+        )
+        day = 1
+    print(f"Retrieving {var_name} for {nuts_region} at {year}-{month}-{day}...")
+    result = (
+        session.query(VarValueNuts)
+        .join(NutsDef, VarValueNuts.nuts_id == NutsDef.nuts_id)
+        .join(TimePoint, VarValueNuts.time_id == TimePoint.id)
+        .join(VarType, VarValueNuts.var_id == VarType.id)
+        .filter(
+            NutsDef.nuts_id == nuts_region,
+            TimePoint.year == year,
+            TimePoint.month == month,
+            TimePoint.day == day,
+            VarType.name == var_name,
+        )
+        .first()
+    )
+    return result.value if result else None
+
+
 def get_time_points(
     session: Session,
     start_time_point: Tuple[int, int],
