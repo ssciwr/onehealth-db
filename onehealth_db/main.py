@@ -95,7 +95,7 @@ def db_status():
 def get_cartesian(
     session: SessionDep,
     requested_time_point: datetime.date,
-    requested_variable_value: str = None,
+    requested_variable_value: str | None,
 ) -> Union[dict, None]:
     # the frontend will request a variable over all available lat, long values for that variable
     # the date input is 2016-01-01 (a date object)
@@ -107,6 +107,31 @@ def get_cartesian(
     var_name = requested_variable_value
     try:
         var_value = db.get_var_values_cartesian(
+            session,
+            time_point=date_requested,
+            var_name=var_name,
+        )
+        return {"result": var_value}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/nuts_data")
+def get_nuts_data(
+    session: SessionDep,
+    requested_time_point: datetime.date,
+    requested_variable_value: str | None,
+) -> Union[dict, None]:
+    # the frontend will request a variable over all available lat, long values for that variable
+    # the date input is 2016-01-01 (a date object)
+    # the variable input is a matching string, ie "t2m" for temperature
+    # the variable name will be supplied via the model yaml files for each selected model
+    if not isinstance(requested_time_point, datetime.date):
+        return {"error": "Invalid date format. Use YYYY-MM-DD."}
+    date_requested = (requested_time_point.year, requested_time_point.month)
+    var_name = requested_variable_value
+    try:
+        var_value = db.get_var_values_nuts(
             session,
             time_point=date_requested,
             var_name=var_name,
