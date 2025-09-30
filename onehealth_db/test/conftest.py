@@ -190,6 +190,26 @@ def get_dataset():
     return dataset
 
 
+@pytest.fixture()
+def get_dataset_nuts():
+    rng = np.random.default_rng(42)
+    data = rng.random((2, 3, 2)) * 1000 + 273.15
+    data_array = xr.DataArray(
+        data,
+        dims=["latitude", "longitude", "time"],
+        coords={
+            "latitude": [10, 11],
+            "longitude": [10, 11, 12],
+            "time": [
+                np.datetime64("2023-01-01", "ns"),
+                np.datetime64("2024-01-01", "ns"),
+            ],
+        },
+    )
+    dataset = xr.Dataset({"t2m": data_array})
+    return dataset
+
+
 @pytest.fixture
 def get_varnuts_dataset():
     rng = np.random.default_rng(42)

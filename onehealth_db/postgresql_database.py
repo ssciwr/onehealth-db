@@ -12,7 +12,6 @@ from sqlalchemy import (
     engine,
     func,
 )
-from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.exc import SQLAlchemyError
 from geoalchemy2 import Geometry, WKBElement
@@ -1072,25 +1071,24 @@ def get_grid_ids_in_nuts(
     return sorted(set(filtered_grid_points_gdf["id"].tolist()))
 
 
-# TODO refactor
 def get_var_values_nuts(
-    engine: engine.Engine,
     session: Session,
     time_point: Tuple[int, int],
-    var_name: str | None = None,
-) -> dict[str, list[Tuple[str, float]]]:
-    """Get variable values for NUTS regions.
+    var_name: None | str = None,
+) -> dict:
+    """Get variable values for all two-digit NUTS regions.
 
     Args:
-        engine (engine.Engine): SQLAlchemy engine object.
         session (Session): SQLAlchemy session object.
-        time_point (Tuple[int, int]): Start time point as (year, month).
-        var_name (str): List of variable names to filter by.
-            If None, the default model variable name is used (currently: t2m).
+        time_point (Tuple[int, int]): Date point as (year, month).
+        var_name (None | str): Variable name for which values should be returned.
+            If None, the default model values will be returned.
 
     Returns:
-        Tuple[str, float]: A tuple of NUTS region abbreviation and variable value.
+        dict: A dict with (NUTS_id: var_value) for the requested date and variable type.
+            The NUTS id is the two-digit nuts abbreviation for the regions.
     """
+
     # get the time point and its id
     date_object = (
         session.query(TimePoint)
@@ -1104,18 +1102,6 @@ def get_var_values_nuts(
 
     # get time id
     time_id = date_object.id
-
-    # get the nuts regions
-    nuts_regions = get_nuts_regions(engine)
-    if nuts_regions.empty:
-        print("No NUTS regions found in the specified area.")
-        raise HTTPException(
-            status_code=400, detail="Missing data for defining NUTS regions."
-        )
-
-    # find grid point IDs inside the NUTS regions
-    grid_ids_in_nuts = get_grid_ids_in_nuts(engine, nuts_regions)
-
     # get the var type
     if not var_name:
         var_name = "t2m"  # default variable name
@@ -1128,71 +1114,25 @@ def get_var_values_nuts(
 
     # get the variable type id
     var_id = var_type.id
-    # now query all variable values within the NUTS regions for this time point
-    # get variable values for each grid point and time point
-    query = (
-        session.query(
-            VarValue.value.label("var_value"),
-            GridPoint.point.label("geometry"),
-            TimePoint.year,
-            TimePoint.month,
-            TimePoint.day,
-            VarType.name.label("var_name"),
-        )
-        .join(GridPoint, VarValue.grid_id == GridPoint.id)
-        .join(TimePoint, VarValue.time_id == TimePoint.id)
-        .join(VarType, VarValue.var_id == VarType.id)
-        .filter(
-            GridPoint.id.in_(grid_ids_in_nuts),
-            TimePoint.id == time_id,
-            VarType.id == var_id,
-        )
+
+    # now query all variable values with their nuts_id for this time point
+    values = (
+        session.query(VarValueNuts)
+        .filter(VarValueNuts.time_id == time_id, VarValueNuts.var_id == var_id)
+        .all()
     )
-    compiled_query = query.statement.compile(
-        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
-    )
-    var_values = gpd.read_postgis(
-        compiled_query,
-        engine,
-        params={
-            "grid_ids_in_nuts": list(grid_ids_in_nuts),
-            "time_id": time_id,
-            "var_id": var_id,
-        },
-        geom_col="geometry",
-    )
-    if var_values.empty:
-        print("No variable values found for the specified criteria.")
+    # now get all the nuts ids associated with the values
+    nuts_ids = [v.nuts_id for v in values]
+    if not nuts_ids:
+        print("No NUTS id's found in the database.")
         raise HTTPException(
-            status_code=400, detail="No variable values found in the database."
+            status_code=400, detail="No NUTS ids found in the database."
         )
-    # aggregate variable values for each NUTS region
-    aggregated_by_nuts = (
-        gpd.sjoin(
-            var_values,
-            nuts_regions,
-            how="inner",
-            predicate="intersects",
-        )
-        .groupby(["nuts_id", "var_name", "time"])
-        .agg(
-            {
-                "var_value": "mean",  # average value for the variable
-            }
-        )
-        .reset_index()
-    )
-    # merge the aggregated values with the NUTS regions
-    # create a list of tuples with (NUTS_ID, var_value)
-    nuts_var_values = nuts_regions.merge(aggregated_by_nuts, on="nuts_id")
+    # create a dict with NUTS_id: var_value
+    mydict = {nuts_id: v.value for v, nuts_id in zip(values, nuts_ids)}
+    import json
 
-    mydict = {"NUTS id, var_value": nuts_var_values}
-    print(mydict)
-    with open("nuts_grid_data_onehealth.json", "w") as f:
-        import json
-
-        json.dump(mydict, f, indent=4)
-        print("Data saved to cartesian_grid_data_onehealth.json")
+    json.dumps(mydict)
     return mydict
 
 

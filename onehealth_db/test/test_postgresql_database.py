@@ -859,9 +859,13 @@ def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
     get_session.commit()
 
 
-@pytest.mark.skip
 def test_get_var_values_nuts(
-    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data, get_dataset
+    get_engine_with_tables,
+    get_session,
+    tmp_path,
+    get_nuts_def_data,
+    get_dataset,
+    get_varnuts_dataset,
 ):
     # create a sample NUTS shapefile
     nuts_path = tmp_path / "nuts_def.shp"
@@ -871,75 +875,43 @@ def test_get_var_values_nuts(
     # insert NUTS definitions
     postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
 
-    # insert grid points
-    # edit grid point to match NUTS regions
-    get_dataset = get_dataset.assign_coords(
-        latitude=("latitude", [0.5, 1.0]),
-        longitude=("longitude", [0.5, 1.0, 1.5]),
-    )
-    postdb.insert_grid_points(
-        get_session, get_dataset.latitude.values, get_dataset.longitude.values
-    )
-
-    # insert time points
-    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
-
-    # insert var types
     var_type_data = [
         {
-            "name": "t2m",
+            "name": "t2m_mean",
             "unit": "K",
             "description": "2m temperature",
         }
     ]
-    postdb.insert_var_types(get_session, var_type_data)
 
     # get the id maps
-    grid_id_map, time_id_map, var_id_map = postdb.get_id_maps(get_session)
+    session1 = postdb.create_session(get_engine_with_tables)
+    _, time_id_map, var_id_map = retrieve_id_maps(session1, get_dataset, var_type_data)
+    session1.close()
 
-    # insert var values
-    postdb.insert_var_values(
+    # insert var value
+    postdb.insert_var_value_nuts(
         get_engine_with_tables,
-        get_dataset,
-        "t2m",
-        grid_id_map,
-        time_id_map,
-        var_id_map,
-        to_monthly=False,
+        get_varnuts_dataset,
+        var_name="t2m_mean",
+        time_id_map=time_id_map,
+        var_id_map=var_id_map,
     )
 
     # test the function
     # normal case
     result_dict = postdb.get_var_values_nuts(
-        get_engine_with_tables,
         get_session,
         time_point=(2023, 1),
-        var_name=None,
+        var_name="t2m_mean",
     )
-    assert len(result_dict["NUTS id, var_value"]) == 2
-    assert result_dict["NUTS id, var_value"][0][0] == "NUTS1"
-    assert result_dict["NUTS id, var_value"][0][1] == np.mean(
-        get_dataset.t2m[:, :2, 0]
-    )  # dataset has coords lat lon time
-    assert result_dict["NUTS id, var_value"][1][0] == "NUTS2"
-    assert result_dict["NUTS id, var_value"][1][1] == np.mean(
-        get_dataset.t2m[:, 1:, 0]
-    )  # dataset has coords lat lon time
-    # with var names
-    result_dict = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        time_point=(2023, 1),
-        var_name="t2m",
-    )
-    assert len(result_dict["NUTS id, var_value"]) == 2
-    assert result_dict["NUTS id, var_value"][0][0] == "NUTS1"
-
+    assert len(result_dict) == 2
+    print(get_varnuts_dataset["t2m_mean"])
+    assert result_dict["NUTS1"] == get_varnuts_dataset["t2m_mean"][0, 0]
+    assert result_dict["NUTS2"] == get_varnuts_dataset["t2m_mean"][1, 0]
     # none cases
     # no time points
     with pytest.raises(HTTPException):
         postdb.get_var_values_nuts(
-            get_engine_with_tables,
             get_session,
             time_point=(2025, 1),
             var_name=None,
@@ -947,7 +919,6 @@ def test_get_var_values_nuts(
     # no var types
     with pytest.raises(HTTPException):
         postdb.get_var_values_nuts(
-            get_engine_with_tables,
             get_session,
             time_point=(2023, 1),
             var_name="non_existing_var",
@@ -957,13 +928,12 @@ def test_get_var_values_nuts(
     get_session.commit()
     with pytest.raises(HTTPException):
         postdb.get_var_values_nuts(
-            get_engine_with_tables,
             get_session,
             time_point=(2023, 1),
             var_name=None,
         )
-
-    # clean up
+    #
+    # # clean up
     get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
