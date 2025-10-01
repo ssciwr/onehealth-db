@@ -105,6 +105,7 @@ def get_var_types_from_config(config: dict) -> list:
     """Get the variable types from the configuration file and
     place them in a dictionary."""
     var_types = []
+    var_types_found = []
     for data in config:
         for var_name in data["var_name"]:
             temp_dict = {
@@ -112,7 +113,10 @@ def get_var_types_from_config(config: dict) -> list:
                 "unit": var_name["unit"],
                 "description": var_name["description"],
             }
-            var_types.append(temp_dict)
+            var_types.append(temp_dict) if var_name[
+                "name"
+            ] not in var_types_found else None
+            var_types_found.append(var_name["name"])
     return var_types
 
 
@@ -172,6 +176,25 @@ def insert_var_values(
     return 0
 
 
+def insert_var_values_nuts(
+    engine: engine.Engine,
+    r0_nuts_path: Path | None = None,
+) -> int:
+    check_paths([r0_nuts_path])
+    r0_ds = xr.open_dataset(r0_nuts_path, chunks={})
+    id_map_session = db.create_session(engine)
+    _, time_id_map, var_type_id_map = db.get_id_maps(id_map_session)
+    id_map_session.close()
+    db.insert_var_value_nuts(
+        engine,
+        r0_ds,
+        var_name="R0",
+        time_id_map=time_id_map,
+        var_id_map=var_type_id_map,
+    )
+    return 0
+
+
 def main() -> None:
     """
     Main function to set up the production database and data lake.
@@ -184,6 +207,7 @@ def main() -> None:
     era5_land_path = None
     shapefile_folder_path = None
     r0_path = None
+    r0_nuts_path = None
     # create the data lake structure if it does not exist
     for dir_name in config["datalake"].keys():
         create_directories(config["datalake"][dir_name])
@@ -191,14 +215,14 @@ def main() -> None:
     # fetch the data from the configured sources
     # this needs to be refactored for complexity
     for data in config["data_to_fetch"]:
+        # set the data level, default to bronze if not specified
+        data_level = data["var_name"][0].get("level", "bronze")
         # check if the data is already in the data lake
-        path_to_file = Path(config["datalake"]["datadir_silver"]) / data.get(
-            "filename", ""
-        )
+        path_to_file = Path(config["datalake"][data_level]) / data.get("filename", "")
         if path_to_file.is_file():
             print(
-                f"File {data['filename']} already exists in the data lake, \
-                    skipping download."
+                f"File {data['filename']} already exists in the data lake \
+                    at level {data_level}, skipping download."
             )
         elif "local" in data["host"]:
             # if the host is local, we can use the local path
@@ -210,22 +234,23 @@ def main() -> None:
                 url=data["url"],
                 filename=data["filename"],
                 filehash=data["filehash"],
-                outputdir=Path(config["datalake"]["datadir_silver"]),
+                outputdir=Path(config["datalake"][data_level]),
             )
-        if data["var_name"][0]["name"] in ["t2m", "tp"]:
+        if data["var_name"][0]["type"] in ["temperature", "precipitation"]:
             # set the path to the ERA5 data
-            era5_land_path = (
-                Path(config["datalake"]["datadir_silver"]) / data["filename"]
-            )
+            era5_land_path = Path(config["datalake"][data_level]) / data["filename"]
             print(f"ERA5 land data path: {era5_land_path}")
-        elif data["var_name"][0]["name"] == "R0":
+        elif data["var_name"][0]["type"] == "R0":
             # set the path to the R0 data
-            # this actually is gold level data
-            r0_path = Path(config["datalake"]["datadir_silver"]) / data["filename"]
+            r0_path = Path(config["datalake"][data_level]) / data["filename"]
             print(f"R0 data path: {r0_path}")
-        elif data["var_name"][0]["name"] == "NUTS-definition":
+        elif data["var_name"][0]["type"] == "R0_nuts":
+            # set the path to the R0 nuts data
+            r0_nuts_path = Path(config["datalake"][data_level]) / data["filename"]
+            print(f"R0 NUTS data path: {r0_nuts_path}")
+        elif data["var_name"][0]["type"] == "definition":
             # extract file and set the path to the NUTS shapefiles
-            shapefile_path = Path(config["datalake"]["datadir_silver"])
+            shapefile_path = Path(config["datalake"][data_level])
             shapefile_path = shapefile_path / data["filename"]
             # make sure the shapefile folder is unzipped
             shapefile_folder_path = shapefile_path.with_suffix("")
@@ -247,6 +272,8 @@ def main() -> None:
     var_type_session.close()
     # insert the data
     insert_var_values(engine, era5_land_path=era5_land_path, r0_path=r0_path)
+    # insert the nuts variables data
+    insert_var_values_nuts(engine, r0_nuts_path=r0_nuts_path)
 
 
 if __name__ == "__main__":

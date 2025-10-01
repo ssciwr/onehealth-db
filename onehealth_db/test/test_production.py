@@ -106,6 +106,33 @@ def test_get_var_types_from_config():
     assert var_types[1]["name"] == "total-population"
     assert var_types[1]["unit"] == "1"
     assert var_types[1]["description"] == "Total population"
+    # test that duplicates are removed
+    config_dict = {
+        "data_to_fetch": [
+            {
+                "var_name": [
+                    {"name": "t2m", "unit": "Celsius", "description": "2m temperature"},
+                    {"name": "t2m", "unit": "Celsius", "description": "2m temperature"},
+                ],
+            },
+            {
+                "var_name": [
+                    {
+                        "name": "total-population",
+                        "unit": "1",
+                        "description": "Total population",
+                    },
+                    {
+                        "name": "total-population",
+                        "unit": "1",
+                        "description": "Total population",
+                    },
+                ],
+            },
+        ]
+    }
+    var_types = prod.get_var_types_from_config(config_dict["data_to_fetch"])
+    assert len(var_types) == 2
 
 
 def test_check_paths(tmp_path: Path):
