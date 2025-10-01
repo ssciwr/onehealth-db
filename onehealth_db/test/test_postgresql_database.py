@@ -859,6 +859,20 @@ def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
     get_session.commit()
 
 
+def test_filter_nuts_ids_for_resolution():
+    nuts_ids = ["DE", "DE11", "DE1", "TR2", "TR22"]
+    filtered_nuts_ids = postdb.filter_nuts_ids_for_resolution(nuts_ids, "NUTS0")
+    assert len(filtered_nuts_ids) == 1
+    assert "DE" in filtered_nuts_ids
+    filtered_nuts_ids = postdb.filter_nuts_ids_for_resolution(nuts_ids, "NUTS2")
+    assert len(filtered_nuts_ids) == 2
+    assert "DE11" in filtered_nuts_ids
+    assert "TR22" in filtered_nuts_ids
+    # test with no matching nuts ids
+    filtered_nuts_ids = postdb.filter_nuts_ids_for_resolution(nuts_ids, "NUTS3")
+    assert len(filtered_nuts_ids) == 0
+
+
 def test_get_var_values_nuts(
     get_engine_with_tables,
     get_session,

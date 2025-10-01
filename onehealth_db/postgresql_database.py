@@ -1071,10 +1071,38 @@ def get_grid_ids_in_nuts(
     return sorted(set(filtered_grid_points_gdf["id"].tolist()))
 
 
+def filter_nuts_ids_for_resolution(nuts_ids: List[str], resolution: str) -> List[str]:
+    """Filter NUTS IDs based on the specified resolution.
+
+    Args:
+        nuts_ids (List[str]): List of NUTS IDs to filter.
+        resolution (str): Desired NUTS resolution ("NUTS0", "NUTS1", "NUTS2", "NUTS3").
+
+    Returns:
+        List[str]: Filtered list of NUTS IDs matching the specified resolution.
+    """
+    if resolution not in {"NUTS0", "NUTS1", "NUTS2", "NUTS3"}:
+        raise ValueError(
+            "Invalid resolution. Must be one of 'NUTS0', 'NUTS1', 'NUTS2', 'NUTS3'."
+        )
+
+    level_map = {
+        "NUTS0": 2,
+        "NUTS1": 3,
+        "NUTS2": 4,
+        "NUTS3": 5,
+    }
+    level = level_map[resolution]
+
+    filtered_nuts_ids = [nid for nid in nuts_ids if len(nid) == level]
+    return filtered_nuts_ids
+
+
 def get_var_values_nuts(
     session: Session,
     time_point: Tuple[int, int],
     var_name: None | str = None,
+    grid_resolution: str = "NUTS2",
 ) -> dict:
     """Get variable values for all two-digit NUTS regions.
 
@@ -1083,6 +1111,7 @@ def get_var_values_nuts(
         time_point (Tuple[int, int]): Date point as (year, month).
         var_name (None | str): Variable name for which values should be returned.
             If None, the default model values will be returned.
+        grid_resolution (str): Grid resolution, by default "NUTS2" is returned.
 
     Returns:
         dict: A dict with (NUTS_id: var_value) for the requested date and variable type.
@@ -1127,6 +1156,14 @@ def get_var_values_nuts(
         print("No NUTS id's found in the database.")
         raise HTTPException(
             status_code=400, detail="No NUTS ids found in the database."
+        )
+    # filter the nuts ids to the desired resolution
+    nuts_ids = filter_nuts_ids_for_resolution(nuts_ids, grid_resolution)
+    if not nuts_ids:
+        print(f"No {grid_resolution} NUTS id's found in the database.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"No {grid_resolution} NUTS ids found in the database.",
         )
     # create a dict with NUTS_id: var_value
     mydict = {nuts_id: v.value for v, nuts_id in zip(values, nuts_ids)}
