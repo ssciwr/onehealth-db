@@ -128,9 +128,9 @@ def test_insert_nuts_def(
 
     result = get_session.query(postdb.NutsDef).all()
     assert len(result) == 2
-    assert result[0].nuts_id == "NUTS1"
+    assert result[0].nuts_id == "DE11"
     assert result[0].name_latn == "Test NUTS"
-    assert result[1].nuts_id == "NUTS2"
+    assert result[1].nuts_id == "DE22"
     assert result[1].name_latn == "Test NUTS2"
 
     # clean up
@@ -509,7 +509,7 @@ def test_get_var_value_nuts(
     time_point = postdb.TimePoint(year=2023, month=1, day=1)
     var_type = postdb.VarType(name="t2m", unit="K", description="2m temperature")
     var_value = postdb.VarValueNuts(
-        nuts_id="NUTS1",
+        nuts_id="DE11",
         time_id=1,
         var_id=1,
         value=300.0,
@@ -523,7 +523,7 @@ def test_get_var_value_nuts(
     result = postdb.get_var_value_nuts(
         get_session,
         str(var_type.name),
-        "NUTS1",
+        "DE11",
         time_point.year,
         time_point.month,
         time_point.day,
@@ -534,7 +534,7 @@ def test_get_var_value_nuts(
     result = postdb.get_var_value_nuts(
         get_session,
         "non_existing_var",
-        "NUTS1",
+        "DE11",
         time_point.year,
         time_point.month,
         time_point.day,
@@ -815,9 +815,9 @@ def test_get_nuts_regions(
     # normal case
     result = postdb.get_nuts_regions(get_engine_with_tables)
     assert len(result) == 2
-    assert result.loc[0, "nuts_id"] == "NUTS1"  # result is a geodataframe
+    assert result.loc[0, "nuts_id"] == "DE11"  # result is a geodataframe
     assert result.loc[0, "name_latn"] == "Test NUTS"
-    assert result.loc[1, "nuts_id"] == "NUTS2"
+    assert result.loc[1, "nuts_id"] == "DE22"
     assert result.loc[1, "name_latn"] == "Test NUTS2"
 
     # clean up
@@ -919,8 +919,8 @@ def test_get_var_values_nuts(
         var_name="t2m_mean",
     )
     assert len(result_dict) == 2
-    assert result_dict["NUTS1"] == get_varnuts_dataset["t2m_mean"][0, 0]
-    assert result_dict["NUTS2"] == get_varnuts_dataset["t2m_mean"][1, 0]
+    assert result_dict["DE11"] == get_varnuts_dataset["t2m_mean"][0, 0]
+    assert result_dict["DE22"] == get_varnuts_dataset["t2m_mean"][1, 0]
     # none cases
     # no time points
     with pytest.raises(HTTPException):
@@ -944,6 +944,15 @@ def test_get_var_values_nuts(
             get_session,
             time_point=(2023, 1),
             var_name=None,
+        )
+    # no values for selected resolution
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.commit()
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_nuts(
+            get_session,
+            time_point=(2023, 1),
+            var_name="t2m_mean",
         )
     #
     # # clean up
@@ -1021,7 +1030,7 @@ def test_insert_var_value_nuts(
     session2 = postdb.create_session(get_engine_with_tables)
     result = session2.query(postdb.VarValueNuts).all()
     assert len(result) == 4
-    assert result[0].nuts_id == "NUTS1"
+    assert result[0].nuts_id == "DE11"
     assert result[0].time_id == 1
     assert result[0].var_id == 1
     assert math.isclose(

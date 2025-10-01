@@ -1158,6 +1158,7 @@ def get_var_values_nuts(
             status_code=400, detail="No NUTS ids found in the database."
         )
     # filter the nuts ids to the desired resolution
+    # this could also be done based on the NutsDef table "levl_code"
     nuts_ids = filter_nuts_ids_for_resolution(nuts_ids, grid_resolution)
     if not nuts_ids:
         print(f"No {grid_resolution} NUTS id's found in the database.")
