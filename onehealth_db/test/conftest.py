@@ -198,7 +198,7 @@ def get_varnuts_dataset():
         data,
         dims=["NUTS_ID", "time"],
         coords={
-            "NUTS_ID": ["NUTS1", "NUTS2"],
+            "NUTS_ID": ["DE11", "DE22"],
             "time": [
                 np.datetime64("2023-01-01", "ns"),
                 np.datetime64("2024-01-01", "ns"),

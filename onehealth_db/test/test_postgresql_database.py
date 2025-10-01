@@ -829,7 +829,7 @@ def test_get_nuts_regions(
 def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
     nuts_regions = gpd.GeoDataFrame(
         {
-            "nuts_id": ["NUTS1", "NUTS2"],
+            "nuts_id": ["DE11", "DE22"],
             "geometry": [
                 Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
                 Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
