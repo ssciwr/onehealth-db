@@ -905,7 +905,6 @@ def test_get_var_values_nuts(
         var_name="t2m_mean",
     )
     assert len(result_dict) == 2
-    print(get_varnuts_dataset["t2m_mean"])
     assert result_dict["NUTS1"] == get_varnuts_dataset["t2m_mean"][0, 0]
     assert result_dict["NUTS2"] == get_varnuts_dataset["t2m_mean"][1, 0]
     # none cases

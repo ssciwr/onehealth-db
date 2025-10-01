@@ -1130,9 +1130,6 @@ def get_var_values_nuts(
         )
     # create a dict with NUTS_id: var_value
     mydict = {nuts_id: v.value for v, nuts_id in zip(values, nuts_ids)}
-    import json
-
-    json.dumps(mydict)
     return mydict
 
 
