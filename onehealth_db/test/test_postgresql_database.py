@@ -128,9 +128,9 @@ def test_insert_nuts_def(
 
     result = get_session.query(postdb.NutsDef).all()
     assert len(result) == 2
-    assert result[0].nuts_id == "NUTS1"
+    assert result[0].nuts_id == "DE11"
     assert result[0].name_latn == "Test NUTS"
-    assert result[1].nuts_id == "NUTS2"
+    assert result[1].nuts_id == "DE22"
     assert result[1].name_latn == "Test NUTS2"
 
     # clean up
@@ -509,7 +509,7 @@ def test_get_var_value_nuts(
     time_point = postdb.TimePoint(year=2023, month=1, day=1)
     var_type = postdb.VarType(name="t2m", unit="K", description="2m temperature")
     var_value = postdb.VarValueNuts(
-        nuts_id="NUTS1",
+        nuts_id="DE11",
         time_id=1,
         var_id=1,
         value=300.0,
@@ -523,7 +523,7 @@ def test_get_var_value_nuts(
     result = postdb.get_var_value_nuts(
         get_session,
         str(var_type.name),
-        "NUTS1",
+        "DE11",
         time_point.year,
         time_point.month,
         time_point.day,
@@ -534,7 +534,7 @@ def test_get_var_value_nuts(
     result = postdb.get_var_value_nuts(
         get_session,
         "non_existing_var",
-        "NUTS1",
+        "DE11",
         time_point.year,
         time_point.month,
         time_point.day,
@@ -799,7 +799,6 @@ def test_get_var_values_cartesian_download(get_dataset, insert_data, tmp_path):
         )
 
 
-@pytest.mark.skip
 def test_get_nuts_regions(
     get_engine_with_tables, get_session, tmp_path, get_nuts_def_data
 ):
@@ -815,9 +814,9 @@ def test_get_nuts_regions(
     # normal case
     result = postdb.get_nuts_regions(get_engine_with_tables)
     assert len(result) == 2
-    assert result.loc[0, "nuts_id"] == "NUTS1"  # result is a geodataframe
+    assert result.loc[0, "nuts_id"] == "DE11"  # result is a geodataframe
     assert result.loc[0, "name_latn"] == "Test NUTS"
-    assert result.loc[1, "nuts_id"] == "NUTS2"
+    assert result.loc[1, "nuts_id"] == "DE22"
     assert result.loc[1, "name_latn"] == "Test NUTS2"
 
     # clean up
@@ -825,11 +824,10 @@ def test_get_nuts_regions(
     get_session.commit()
 
 
-@pytest.mark.skip
 def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
     nuts_regions = gpd.GeoDataFrame(
         {
-            "nuts_id": ["NUTS1", "NUTS2"],
+            "nuts_id": ["DE11", "DE22"],
             "geometry": [
                 Polygon([(0, 0), (1, 0), (1, 1), (0, 1)]),
                 Polygon([(1, 0), (2, 0), (2, 1), (1, 1)]),
@@ -859,9 +857,27 @@ def test_get_grid_ids_in_nuts(get_engine_with_tables, get_session):
     get_session.commit()
 
 
-@pytest.mark.skip
+def test_filter_nuts_ids_for_resolution():
+    nuts_ids = ["DE", "DE11", "DE1", "TR2", "TR22"]
+    filtered_nuts_ids = postdb.filter_nuts_ids_for_resolution(nuts_ids, "NUTS0")
+    assert len(filtered_nuts_ids) == 1
+    assert "DE" in filtered_nuts_ids
+    filtered_nuts_ids = postdb.filter_nuts_ids_for_resolution(nuts_ids, "NUTS2")
+    assert len(filtered_nuts_ids) == 2
+    assert "DE11" in filtered_nuts_ids
+    assert "TR22" in filtered_nuts_ids
+    # test with no matching nuts ids
+    filtered_nuts_ids = postdb.filter_nuts_ids_for_resolution(nuts_ids, "NUTS3")
+    assert len(filtered_nuts_ids) == 0
+
+
 def test_get_var_values_nuts(
-    get_engine_with_tables, get_session, tmp_path, get_nuts_def_data, get_dataset
+    get_engine_with_tables,
+    get_session,
+    tmp_path,
+    get_nuts_def_data,
+    get_dataset,
+    get_varnuts_dataset,
 ):
     # create a sample NUTS shapefile
     nuts_path = tmp_path / "nuts_def.shp"
@@ -871,75 +887,42 @@ def test_get_var_values_nuts(
     # insert NUTS definitions
     postdb.insert_nuts_def(get_engine_with_tables, nuts_path)
 
-    # insert grid points
-    # edit grid point to match NUTS regions
-    get_dataset = get_dataset.assign_coords(
-        latitude=("latitude", [0.5, 1.0]),
-        longitude=("longitude", [0.5, 1.0, 1.5]),
-    )
-    postdb.insert_grid_points(
-        get_session, get_dataset.latitude.values, get_dataset.longitude.values
-    )
-
-    # insert time points
-    postdb.insert_time_points(get_session, [(get_dataset.time.values, False)])
-
-    # insert var types
     var_type_data = [
         {
-            "name": "t2m",
+            "name": "t2m_mean",
             "unit": "K",
             "description": "2m temperature",
         }
     ]
-    postdb.insert_var_types(get_session, var_type_data)
 
     # get the id maps
-    grid_id_map, time_id_map, var_id_map = postdb.get_id_maps(get_session)
+    session1 = postdb.create_session(get_engine_with_tables)
+    _, time_id_map, var_id_map = retrieve_id_maps(session1, get_dataset, var_type_data)
+    session1.close()
 
-    # insert var values
-    postdb.insert_var_values(
+    # insert var value
+    postdb.insert_var_value_nuts(
         get_engine_with_tables,
-        get_dataset,
-        "t2m",
-        grid_id_map,
-        time_id_map,
-        var_id_map,
-        to_monthly=False,
+        get_varnuts_dataset,
+        var_name="t2m_mean",
+        time_id_map=time_id_map,
+        var_id_map=var_id_map,
     )
 
     # test the function
     # normal case
     result_dict = postdb.get_var_values_nuts(
-        get_engine_with_tables,
         get_session,
         time_point=(2023, 1),
-        var_name=None,
+        var_name="t2m_mean",
     )
-    assert len(result_dict["NUTS id, var_value"]) == 2
-    assert result_dict["NUTS id, var_value"][0][0] == "NUTS1"
-    assert result_dict["NUTS id, var_value"][0][1] == np.mean(
-        get_dataset.t2m[:, :2, 0]
-    )  # dataset has coords lat lon time
-    assert result_dict["NUTS id, var_value"][1][0] == "NUTS2"
-    assert result_dict["NUTS id, var_value"][1][1] == np.mean(
-        get_dataset.t2m[:, 1:, 0]
-    )  # dataset has coords lat lon time
-    # with var names
-    result_dict = postdb.get_var_values_nuts(
-        get_engine_with_tables,
-        get_session,
-        time_point=(2023, 1),
-        var_name="t2m",
-    )
-    assert len(result_dict["NUTS id, var_value"]) == 2
-    assert result_dict["NUTS id, var_value"][0][0] == "NUTS1"
-
+    assert len(result_dict) == 2
+    assert result_dict["DE11"] == get_varnuts_dataset["t2m_mean"][0, 0]
+    assert result_dict["DE22"] == get_varnuts_dataset["t2m_mean"][1, 0]
     # none cases
     # no time points
     with pytest.raises(HTTPException):
         postdb.get_var_values_nuts(
-            get_engine_with_tables,
             get_session,
             time_point=(2025, 1),
             var_name=None,
@@ -947,7 +930,6 @@ def test_get_var_values_nuts(
     # no var types
     with pytest.raises(HTTPException):
         postdb.get_var_values_nuts(
-            get_engine_with_tables,
             get_session,
             time_point=(2023, 1),
             var_name="non_existing_var",
@@ -957,13 +939,22 @@ def test_get_var_values_nuts(
     get_session.commit()
     with pytest.raises(HTTPException):
         postdb.get_var_values_nuts(
-            get_engine_with_tables,
             get_session,
             time_point=(2023, 1),
             var_name=None,
         )
-
-    # clean up
+    # no values for selected resolution
+    get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
+    get_session.commit()
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_nuts(
+            get_session,
+            time_point=(2023, 1),
+            var_name="t2m_mean",
+            grid_resolution="NUTS3",
+        )
+    #
+    # # clean up
     get_session.execute(text("TRUNCATE TABLE var_value RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE var_type RESTART IDENTITY CASCADE"))
     get_session.execute(text("TRUNCATE TABLE time_point RESTART IDENTITY CASCADE"))
@@ -1038,7 +1029,7 @@ def test_insert_var_value_nuts(
     session2 = postdb.create_session(get_engine_with_tables)
     result = session2.query(postdb.VarValueNuts).all()
     assert len(result) == 4
-    assert result[0].nuts_id == "NUTS1"
+    assert result[0].nuts_id == "DE11"
     assert result[0].time_id == 1
     assert result[0].var_id == 1
     assert math.isclose(

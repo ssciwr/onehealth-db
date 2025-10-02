@@ -114,7 +114,7 @@ def get_nuts_def_data():
     polygon2 = Polygon([(1, 0), (2, 0), (2, 1), (1, 1)])
     gdf = gpd.GeoDataFrame(
         {
-            "NUTS_ID": ["NUTS1", "NUTS2"],
+            "NUTS_ID": ["DE11", "DE22"],
             "LEVL_CODE": [1, 2],
             "CNTR_CODE": [1, 1],
             "NAME_LATN": ["Test NUTS", "Test NUTS2"],
@@ -198,7 +198,7 @@ def get_varnuts_dataset():
         data,
         dims=["NUTS_ID", "time"],
         coords={
-            "NUTS_ID": ["NUTS1", "NUTS2"],
+            "NUTS_ID": ["DE11", "DE22"],
             "time": [
                 np.datetime64("2023-01-01", "ns"),
                 np.datetime64("2024-01-01", "ns"),
