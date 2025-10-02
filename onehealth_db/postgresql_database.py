@@ -842,6 +842,7 @@ def sort_grid_points_get_ids(
 def get_var_values_cartesian(
     session: Session,
     time_point: Tuple[int, int],
+    area: None | Tuple[float, float, float, float] = None,
     var_name: None | str = None,
 ) -> dict:
     """Get variable values for a cartesian map.
@@ -849,6 +850,9 @@ def get_var_values_cartesian(
     Args:
         session (Session): SQLAlchemy session object.
         time_point (Tuple[int, int]): Date point as (year, month).
+        area (None | Tuple[float, float, float, float]):
+            Area as (North, West, South, East).
+            If None, all grid points are used.
         var_name (None | str): Variable name for which values should be returned.
          If None, the default model values will be returned.
 
@@ -868,6 +872,19 @@ def get_var_values_cartesian(
 
     # get time id
     time_id = date_object.id
+
+    # get the grid points and their ids
+    grid_points = get_grid_points(session, area)
+
+    if not grid_points:
+        print("No grid points found in the specified area.")
+        raise HTTPException(
+            status_code=400, detail="No grid points found in specified area."
+        )
+
+    # Sort and deduplicate latitudes and longitudes
+    grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
+
     # get the var type
     if not var_name:
         var_name = "t2m"  # default variable name
@@ -880,27 +897,23 @@ def get_var_values_cartesian(
 
     # get the variable type id
     var_id = var_type.id
+
     # now query all variable values with their latitude and longitude for this time point
     values = (
         session.query(VarValue)
-        .filter(VarValue.time_id == time_id, VarValue.var_id == var_id)
-        .all()
-    )
-    # now get all the grid points associated with the values
-    grid_points = (
-        session.query(GridPoint)
-        .filter(GridPoint.id.in_([v.grid_id for v in values]))
-        .all()
-    )
-    if not grid_points:
-        print("No grid points found in the database.")
-        raise HTTPException(
-            status_code=400, detail="No grid points found in the database."
+        .filter(
+            VarValue.grid_id.in_(grid_ids.keys()),
+            VarValue.time_id == time_id,
+            VarValue.var_id == var_id,
         )
+        .all()
+    )
+
     # create a list of tuples with (latitude, longitude, var_value)
-    values_list = [
-        (gp.latitude, gp.longitude, v.value) for v, gp in zip(values, grid_points)
-    ]
+    lat_mesh, lon_mesh = np.meshgrid(latitudes, longitudes, indexing="ij")
+    lat_lon_tuples = list(zip(lat_mesh.flatten(), lon_mesh.flatten()))
+    print(lat_lon_tuples)
+    values_list = [(lat, lon, v.value) for v, (lat, lon) in zip(values, lat_lon_tuples)]
     mydict = {"latitude, longitude, var_value": values_list}
     return mydict
 
