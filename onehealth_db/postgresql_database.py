@@ -884,7 +884,8 @@ def get_var_values_cartesian(
 
     # Sort and deduplicate latitudes and longitudes
     grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
-
+    print(grid_ids)
+    print(len(grid_ids))
     # get the var type
     if not var_name:
         var_name = "t2m"  # default variable name
@@ -899,6 +900,7 @@ def get_var_values_cartesian(
     var_id = var_type.id
 
     # now query all variable values with their latitude and longitude for this time point
+    # get variable values for each grid point and time point
     values = (
         session.query(VarValue)
         .filter(
@@ -909,11 +911,21 @@ def get_var_values_cartesian(
         .all()
     )
 
+    # dummy values array
+    values_array = np.full((len(latitudes), len(longitudes)), np.nan)
+
+    # fill the values array with the variable values
+    for vv in values:
+        grid_index = grid_ids[vv.grid_id]
+        lat_index, lon_index = grid_index
+        values_array[lat_index, lon_index] = vv.value
+
     # create a list of tuples with (latitude, longitude, var_value)
-    lat_mesh, lon_mesh = np.meshgrid(latitudes, longitudes, indexing="ij")
-    lat_lon_tuples = list(zip(lat_mesh.flatten(), lon_mesh.flatten()))
-    print(lat_lon_tuples)
-    values_list = [(lat, lon, v.value) for v, (lat, lon) in zip(values, lat_lon_tuples)]
+    grid_mesh = [(lat, lon) for lat in latitudes for lon in longitudes]
+    values_list = [(lat, lon, v.value) for v, (lat, lon) in zip(values, grid_mesh)]
+    print(grid_mesh)
+    print(values_list)
+    print(len(grid_mesh), len(values_list))
     mydict = {"latitude, longitude, var_value": values_list}
     return mydict
 
