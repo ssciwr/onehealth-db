@@ -103,7 +103,7 @@ def get_cartesian(
     # the variable input is a matching string, ie "t2m" for temperature
     # the variable type name will be supplied via the model yaml files for each selected model
     # the requested area is a list of 4 floats, representing the bounding box
-    # [min_lat, min_lon, max_lat, max_lon]
+    # [N, W, S, E], i.e. [50, 8, 48, 10] for a box over Heidelberg
     # if no area is provided, default to the whole world
     if not isinstance(requested_time_point, datetime.date):
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
