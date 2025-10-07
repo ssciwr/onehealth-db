@@ -663,6 +663,7 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
     assert math.isclose(values[0], 10.0, abs_tol=1e-5)
     assert math.isclose(values[1], 10.0, abs_tol=1e-5)
     assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)
+
     # with default var
     ds_result = postdb.get_var_values_cartesian(
         insert_data,
@@ -675,12 +676,33 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
     assert math.isclose(values[1], 10.0, abs_tol=1e-5)
     assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)
 
+    # with area
+    ds_result = postdb.get_var_values_cartesian(
+        insert_data,
+        time_point=(2023, 1),
+        area=(11.0, 10.0, 10.0, 11.0),  # [N, W, S, E]
+        var_name="t2m",
+    )
+    assert len(ds_result["latitude, longitude, var_value"]) == 4
+    values = ds_result["latitude, longitude, var_value"][0]
+    assert math.isclose(values[0], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[1], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)
+
     # test HTTP exceptions
     # test for missing time point
     with pytest.raises(HTTPException):
         postdb.get_var_values_cartesian(
             insert_data,
             time_point=(2020, 1),
+            var_name=None,
+        )
+    # test for missing grid points in area
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian(
+            insert_data,
+            time_point=(2020, 1),
+            area=(20.0, 18.0, 18.0, 20.0),  # [N, W, S, E]
             var_name=None,
         )
     # test for missing variable name

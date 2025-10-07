@@ -786,7 +786,6 @@ def get_grid_points(
     """
     if area is None:
         return session.query(GridPoint).all()
-
     north, west, south, east = area
     return (
         session.query(GridPoint)
@@ -881,11 +880,9 @@ def get_var_values_cartesian(
         raise HTTPException(
             status_code=400, detail="No grid points found in specified area."
         )
+    # get grid ids for lookup
+    grid_ids = [grid_point.id for grid_point in grid_points]
 
-    # Sort and deduplicate latitudes and longitudes
-    grid_ids, latitudes, longitudes = sort_grid_points_get_ids(grid_points)
-    print(grid_ids)
-    print(len(grid_ids))
     # get the var type
     if not var_name:
         var_name = "t2m"  # default variable name
@@ -901,31 +898,21 @@ def get_var_values_cartesian(
 
     # now query all variable values with their latitude and longitude for this time point
     # get variable values for each grid point and time point
+    # Query with JOIN to get lat, lon, and value directly
     values = (
-        session.query(VarValue)
+        session.query(GridPoint.latitude, GridPoint.longitude, VarValue.value)
+        .join(GridPoint, VarValue.grid_id == GridPoint.id)
         .filter(
-            VarValue.grid_id.in_(grid_ids.keys()),
+            VarValue.grid_id.in_(grid_ids),
             VarValue.time_id == time_id,
             VarValue.var_id == var_id,
         )
+        .order_by(GridPoint.latitude, GridPoint.longitude)  # Ensure consistent ordering
         .all()
     )
+    # Convert directly to list of tuples (much faster)
+    values_list = [(lat, lon, val) for lat, lon, val in values]
 
-    # dummy values array
-    values_array = np.full((len(latitudes), len(longitudes)), np.nan)
-
-    # fill the values array with the variable values
-    for vv in values:
-        grid_index = grid_ids[vv.grid_id]
-        lat_index, lon_index = grid_index
-        values_array[lat_index, lon_index] = vv.value
-
-    # create a list of tuples with (latitude, longitude, var_value)
-    grid_mesh = [(lat, lon) for lat in latitudes for lon in longitudes]
-    values_list = [(lat, lon, v.value) for v, (lat, lon) in zip(values, grid_mesh)]
-    print(grid_mesh)
-    print(values_list)
-    print(len(grid_mesh), len(values_list))
     mydict = {"latitude, longitude, var_value": values_list}
     return mydict
 
