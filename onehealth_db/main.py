@@ -97,10 +97,11 @@ class CartesianRequest(BaseModel):
     requested_variable_type: str | None = None
     requested_area: tuple[float, float, float, float] | None = None
 
+
 @app.post("/cartesian")
 def get_cartesian(
-        session: SessionDep,
-        request: CartesianRequest  # Now everything comes from the body
+    session: SessionDep,
+    request: CartesianRequest,  # Now everything comes from the body
 ) -> Union[dict, None]:
     # the frontend will request a variable over all available lat, long values for that variable
     # the date input is 2016-01-01 (a date object)
@@ -112,7 +113,10 @@ def get_cartesian(
 
     if not isinstance(request.requested_time_point, datetime.date):
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
-    date_requested = (request.requested_time_point.year, request.requested_time_point.month)
+    date_requested = (
+        request.requested_time_point.year,
+        request.requested_time_point.month,
+    )
     var_name = request.requested_variable_type
     try:
         var_value = db.get_var_values_cartesian(
