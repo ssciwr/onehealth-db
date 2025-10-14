@@ -650,9 +650,9 @@ def test_sort_grid_points_get_ids(get_session, get_dataset, insert_data):
     assert grid_ids[4] == (1, 0)
 
 
-def test_get_var_values_cartesian(get_dataset, insert_data):
+def test_get_var_values_cartesian(insert_data):
     # test the function
-    # normal case
+    # normal case with full map
     ds_result = postdb.get_var_values_cartesian(
         insert_data,
         time_point=(2023, 1),
@@ -663,13 +663,27 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
     assert math.isclose(values[0], 10.0, abs_tol=1e-5)
     assert math.isclose(values[1], 10.0, abs_tol=1e-5)
     assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)
-    # with default var
+
+    # with default var and full map
     ds_result = postdb.get_var_values_cartesian(
         insert_data,
         time_point=(2023, 1),
         var_name=None,
     )
     assert len(ds_result["latitude, longitude, var_value"]) == 6
+    values = ds_result["latitude, longitude, var_value"][0]
+    assert math.isclose(values[0], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[1], 10.0, abs_tol=1e-5)
+    assert math.isclose(values[2], 1047.1060485559633, abs_tol=1e-5)
+
+    # with area
+    ds_result = postdb.get_var_values_cartesian(
+        insert_data,
+        time_point=(2023, 1),
+        area=(11.0, 10.0, 10.0, 11.0),  # [N, W, S, E]
+        var_name="t2m",
+    )
+    assert len(ds_result["latitude, longitude, var_value"]) == 4
     values = ds_result["latitude, longitude, var_value"][0]
     assert math.isclose(values[0], 10.0, abs_tol=1e-5)
     assert math.isclose(values[1], 10.0, abs_tol=1e-5)
@@ -683,11 +697,19 @@ def test_get_var_values_cartesian(get_dataset, insert_data):
             time_point=(2020, 1),
             var_name=None,
         )
+    # test for missing grid points in area
+    with pytest.raises(HTTPException):
+        postdb.get_var_values_cartesian(
+            insert_data,
+            time_point=(2023, 1),
+            area=(20.0, 18.0, 18.0, 20.0),  # [N, W, S, E]
+            var_name=None,
+        )
     # test for missing variable name
     with pytest.raises(HTTPException):
         postdb.get_var_values_cartesian(
             insert_data,
-            time_point=(2020, 1),
+            time_point=(2023, 1),
             var_name="non_existing_var",
         )
 
