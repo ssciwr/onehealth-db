@@ -100,7 +100,7 @@ class CartesianRequest(BaseModel):
 
 @app.post("/cartesian")
 def get_cartesian(
-    session: SessionDep,
+    session: Annotated[Session, Depends(get_session)],
     request: CartesianRequest,  # Now everything comes from the body
 ) -> Union[dict, None]:
     # the frontend will request a variable over all available lat, long values for that variable
