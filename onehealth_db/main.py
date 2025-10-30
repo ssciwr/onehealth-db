@@ -10,6 +10,7 @@ import dotenv
 import os
 import logging
 import ipaddress
+from pydantic import BaseModel
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -91,24 +92,37 @@ def db_status():
         return {"status": "error", "detail": str(e)}
 
 
-@app.get("/cartesian")
+class CartesianRequest(BaseModel):
+    requested_time_point: datetime.date
+    requested_variable_type: str | None = None
+    requested_area: tuple[float, float, float, float] | None = None
+
+
+@app.post("/cartesian")
 def get_cartesian(
-    session: SessionDep,
-    requested_time_point: datetime.date,
-    requested_variable_value: str | None,
+    session: Annotated[Session, Depends(get_session)],
+    request: CartesianRequest,  # Now everything comes from the body
 ) -> Union[dict, None]:
     # the frontend will request a variable over all available lat, long values for that variable
     # the date input is 2016-01-01 (a date object)
     # the variable input is a matching string, ie "t2m" for temperature
-    # the variable name will be supplied via the model yaml files for each selected model
-    if not isinstance(requested_time_point, datetime.date):
+    # the variable type name will be supplied via the model yaml files for each selected model
+    # the requested area is a list of 4 floats, representing the bounding box
+    # [N, W, S, E], i.e. [50, 8, 48, 10] for a box over Heidelberg
+    # if no area is provided, default to the whole world
+
+    if not isinstance(request.requested_time_point, datetime.date):
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
-    date_requested = (requested_time_point.year, requested_time_point.month)
-    var_name = requested_variable_value
+    date_requested = (
+        request.requested_time_point.year,
+        request.requested_time_point.month,
+    )
+    var_name = request.requested_variable_type
     try:
         var_value = db.get_var_values_cartesian(
             session,
             time_point=date_requested,
+            area=request.requested_area,
             var_name=var_name,
         )
         return {"result": var_value}
@@ -120,26 +134,31 @@ def get_cartesian(
 def get_nuts_data(
     session: SessionDep,
     requested_time_point: datetime.date,
-    requested_variable_value: str | None,
+    requested_variable_type: str | None,
     requested_grid_resolution: str | None,
 ) -> Union[dict, None]:
     # the frontend will request a variable over all available lat, long values for that variable
     # the date input is 2016-01-01 (a date object)
     # the variable input is a matching string, ie "t2m" for temperature
-    # the variable name will be supplied via the model yaml files for each selected model
+    # the variable type will be supplied via the model yaml files for each selected model
     # the grid resolution is a string, either "NUTS0" for country-level data, or
     # "NUTS1" up to "NUTS3" for finer resolution data
     # if no grid resolution is provided, default to "NUTS2"
     if not isinstance(requested_time_point, datetime.date):
         return {"error": "Invalid date format. Use YYYY-MM-DD."}
     date_requested = (requested_time_point.year, requested_time_point.month)
-    var_name = requested_variable_value
+    var_name = requested_variable_type
     try:
+        grid_resolution = (
+            requested_grid_resolution
+            if requested_grid_resolution is not None
+            else "NUTS2"
+        )
         var_value = db.get_var_values_nuts(
             session,
             time_point=date_requested,
             var_name=var_name,
-            grid_resolution=requested_grid_resolution,
+            grid_resolution=grid_resolution,
         )
         return {"result": var_value}
     except Exception as e:
