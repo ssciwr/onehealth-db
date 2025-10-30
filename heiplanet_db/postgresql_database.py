@@ -275,7 +275,7 @@ def insert_nuts_def(engine: engine.Engine, shapefiles_path: Path):
     Insert NUTS definition data into the database.
     The shapefiles are downloaded from the Eurostat website.
     More details for downloading NUTS shapefiles can be found in
-    [our data page](https://ssciwr.github.io/onehealth-db/data/#eurostats-nuts-definition)
+    [our data page](https://ssciwr.github.io/heiplanet-db/data/#eurostats-nuts-definition)
 
     Five shapefiles are involved in the process:
     - `.shp`: geometry data (e.g. polygons)
@@ -923,7 +923,7 @@ def get_var_values_cartesian_for_download(
     end_time_point: Tuple[int, int] | None = None,
     area: None | Tuple[float, float, float, float] = None,
     var_names: None | List[str] = None,
-    netcdf_file: str = "cartesian_grid_data_onehealth.nc",
+    netcdf_file: str = "cartesian_grid_data_heiplanet.nc",
 ) -> dict:
     """Get variable values for a cartesian map.
 

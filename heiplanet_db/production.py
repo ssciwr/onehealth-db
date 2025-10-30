@@ -5,7 +5,7 @@ import yaml
 import pooch
 import dotenv
 import os
-from onehealth_db import postgresql_database as db
+from heiplanet_db import postgresql_database as db
 import zipfile
 import xarray as xr
 from sqlalchemy import engine
@@ -23,7 +23,7 @@ def read_production_config(dict_path: str | Traversable | Path | None = None) ->
             production database.
     """
     if dict_path is None:
-        dict_path = resources.files("onehealth_db") / "data" / "production_config.yml"
+        dict_path = resources.files("heiplanet_db") / "data" / "production_config.yml"
     # check if the file exists
     if isinstance(dict_path, str):
         dict_path = Path(dict_path)

@@ -1,4 +1,4 @@
-from onehealth_db import postgresql_database as db
+from heiplanet_db import postgresql_database as db
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager

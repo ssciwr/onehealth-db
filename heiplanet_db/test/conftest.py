@@ -1,5 +1,5 @@
 import pytest
-from onehealth_db import postgresql_database as postdb
+from heiplanet_db import postgresql_database as postdb
 from testcontainers.postgres import PostgresContainer
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm.session import sessionmaker

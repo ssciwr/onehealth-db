@@ -45,6 +45,6 @@ data_to_fetch:
     url: "https://heibox.uni-heidelberg.de/f/1fbf90f2bb084c5d8dc5/?dl=1"
     filehash: "e3bca29e36272abb46341fbfb969e6d78dacd95746a109c95abec6b5b555d95d"
 datalake:
-  bronze: ".data_onehealth_db/bronze"
-  silver: ".data_onehealth_db/silver"
-  gold: ".data_onehealth_db/gold"
+  bronze: ".data_heiplanet_db/bronze"
+  silver: ".data_heiplanet_db/silver"
+  gold: ".data_heiplanet_db/gold"

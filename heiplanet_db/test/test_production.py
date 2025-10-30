@@ -1,4 +1,4 @@
-from onehealth_db import production as prod
+from heiplanet_db import production as prod
 import pytest
 from pathlib import Path
 from importlib import resources
@@ -9,7 +9,7 @@ from importlib.resources.abc import Traversable
 def production_config() -> Traversable:
     """Fixture to provide the path to the test configuration file."""
     dict_path = (
-        resources.files("onehealth_db") / "test" / "data" / "test_production_config.yml"
+        resources.files("heiplanet_db") / "test" / "data" / "test_production_config.yml"
     )
     return dict_path
 
