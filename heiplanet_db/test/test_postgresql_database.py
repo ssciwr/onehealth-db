@@ -1,5 +1,5 @@
 import pytest
-from onehealth_db import postgresql_database as postdb
+from heiplanet_db import postgresql_database as postdb
 import numpy as np
 import xarray as xr
 from testcontainers.postgres import PostgresContainer
